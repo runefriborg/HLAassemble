@@ -20,7 +20,9 @@ Author: Rune Moellegaard Friborg <runef@birc.au.dk>
 
 import getopt
 import sys
-
+import gzip
+from Bio import SeqIO
+import vcf
 
 ##############################################################
 ####################### Configuration ########################
@@ -32,7 +34,29 @@ UPDATED="2015-06-03"
 ####################### Main #################################
 
 def main(args):
-    pass
+
+    # Read Fasta file
+    handle = gzip.open(args.fafile, "r")    
+    records = list(SeqIO.parse(handle, "fasta"))
+    handle.close()
+
+    if not len(records) == 1:
+        sys.stderr.write("Error!: "+len(records)+" sequences read. Fasta file must have exactly one sequence!\n")
+        sys.exit(1)
+        
+    faSequence = records[0].seq
+
+
+    # Read vcf file
+    vcf_reader = vcf.Reader(open(args.vcffile, 'r'))
+    vcfRecords = list(vcf_reader)
+    # TODO: organise in an optimal searchable structure
+
+    for record in vcfRecords:
+        print(record)
+
+
+
 
 ##############################################################
 ######################### Help ###############################
