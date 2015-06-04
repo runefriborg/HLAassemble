@@ -121,23 +121,43 @@ def main(args):
             c_pos = int(c_pos)
 
             # Add variant
-            Variants[individual][c_pos] = (pos, [record.REF].extend([x.sequence for x in record.ALT]))
+            v = [record.REF]
+            v.extend([x.sequence for x in record.ALT])
+            Variants[individual][c_pos] = (pos, v)
 
             if childVCFRecords.has_key(c_pos):
                 # Child has a variant on the same position in it's VCF                
                 child_record = childVCFRecords[c_pos]
-                childVariants[c_pos] = (c_pos, [child_record.REF].extend([x.sequence for x in child_record.ALT]))
+
+                cv = [child_record.REF]
+                cv.extend([x.sequence for x in child_record.ALT])
+
+                if childVariants.has_key(c_pos):
+                    childVariants[c_pos][1].extend(cv)
+                else:
+                    childVariants[c_pos] = (c_pos, cv)
+
             else:
                 # Search fasta
-                
-                
 
+                # Correct for one-indexing
+                fasta_c_pos = c_pos-1
+
+                # Get variants
+                cv = []
+                for item in v:
+                    cv.append(str(childFaSequence[fasta_c_pos:(fasta_c_pos+len(item))]))
+
+                if childVariants.has_key(c_pos):
+                    childVariants[c_pos][1].extend(cv)
+                else:
+                    childVariants[c_pos] = (c_pos, cv)
+            
         
         sys.stdout.write("done\n")
         handle.close()
         individual += 1
-
-
+        
     #Processing the child
     filename = args.c_input
     sys.stdout.write("Processing '"+filename+"'...")
