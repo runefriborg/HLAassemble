@@ -29,6 +29,7 @@ import vcf
 
 VERSION="0.01"
 UPDATED="2015-06-03"
+VCF_OUTPUT_TEMPLATE="template.vcf"
 
 ##############################################################
 ####################### Main #################################
@@ -71,12 +72,24 @@ def main(args):
     # Read input file
     individual = 0                # 0 = male, 1 = female, 2 = child
     inheritance = ((2),(2),(0,1)) # individuals for which there is inheritance
+    output_filename = [args.m_output, args.f_output, args.c_output]
 
     for filename in [args.m_input, args.f_input, args.c_input]:
         if filename[-2:] == 'gz':
             handle = gzip.open(filename, "r")
         else:
             handle = open(filename, "r")
+
+        # Output output file
+        ofilename = output_filename[individual]
+        if ofilename[-2:] == 'gz':
+            ohandle = gzip.open(ofilename, "w")
+        else:
+            ohandle = open(ofilename, "w")
+            
+        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
+        vcf_writer = vcf.Writer(ohandle, vcf_template)
+
 
         # Skip header
         handle.next()
@@ -99,7 +112,10 @@ def main(args):
             # Get variants
             #if vcfDict.has_key(int(c_pos)):
             #    print("ok")
+            print(vcfRecords[0])
+            vcf_writer.write_record(vcfRecords[individual][int(pos)])
 
+        ohandle.close()
         handle.close()
 
         individual += 1
