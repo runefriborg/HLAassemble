@@ -73,6 +73,10 @@ def main(args):
 
     # Read input file
     individual = 0                # 0 = father, 1 = mother, 2 = child
+    childVCFRecords = vcfRecords[2]
+    childFaSequence = faSequence[2]
+    Variants = ({},{}) # indexed using the positions of the child
+    childVariants = {}
 
     # Preprocessing the data for father and mother
     for filename in [args.f_input, args.m_input]:
@@ -100,30 +104,86 @@ def main(args):
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
+
+            #record.alleles.append('K')
+            #print(record.alleles)
+            
+            #sys.exit(0)
+            # Skip if NA
+            if (c_pos == 'NA'):
+                continue
+
+            # Fetch VCF record
             record = vcfRecords[individual][int(pos)]
 
+            # Type cast to int
+            pos = int(pos)
+            c_pos = int(c_pos)
 
+            # Add variant
+            Variants[individual][c_pos] = (pos, [record.REF].extend([x.sequence for x in record.ALT]))
+
+            if childVCFRecords.has_key(c_pos):
+                # Child has a variant on the same position in it's VCF                
+                child_record = childVCFRecords[c_pos]
+                childVariants[c_pos] = (c_pos, [child_record.REF].extend([x.sequence for x in child_record.ALT]))
+            else:
+                # Search fasta
+                
+                
+
+        
+        sys.stdout.write("done\n")
         handle.close()
         individual += 1
 
 
+    #Processing the child
+    filename = args.c_input
+    sys.stdout.write("Processing '"+filename+"'...")
+    if filename[-2:] == 'gz':
+        handle = gzip.open(filename, "r")
+    else:
+        handle = open(filename, "r")
+
+    # Open output file
+    ofilename = args.c_output
+    if ofilename[-2:] == 'gz':
+        ohandle = gzip.open(ofilename, "w")
+    else:
+        ohandle = open(ofilename, "w")
+    vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
+    vcf_writer = vcf.Writer(ohandle, vcf_template)
 
 
-    if False:
-        # Open output file
-        ofilename = output_filename[individual]
-        if ofilename[-2:] == 'gz':
-            ohandle = gzip.open(ofilename, "w")
-        else:
-            ohandle = open(ofilename, "w")
-            
-        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
-        vcf_writer = vcf.Writer(ohandle, vcf_template)
+    # Skip header
+    handle.next()
 
+    # Parse lines
+    i = 0
+    for line in handle:
+        try:
+            i += 1
 
-        vcf_writer.write_record()
+            if line == "\n":
+                continue
 
-        ohandle.close()
+            l = line.strip().split('\t')
+            pos, ref, alt, length, f_pos, m_pos, c_pos = l
+        except ValueError:
+            sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
+            sys.exit(1)            
+
+        record = childVCFRecords[int(pos)]
+
+        #record.ALT.append(vcf.model._Substitution("A"))
+        #print(record.ALT)
+
+        vcf_writer.write_record(record)
+
+    sys.stdout.write("done\n")
+    ohandle.close()
+    handle.close()
 
 
 ##############################################################
