@@ -73,26 +73,14 @@ def main(args):
 
     # Read input file
     individual = 0                # 0 = father, 1 = mother, 2 = child
-    inheritance = ((2),(2),(0,1)) # individuals for which there is inheritance
-    output_filename = [args.f_output, args.m_output, args.c_output]
 
-    for filename in [args.f_input, args.m_input, args.c_input]:
-        sys.stdout.write("Processing '"+filename+"'...\n")
+    # Preprocessing the data for father and mother
+    for filename in [args.f_input, args.m_input]:
+        sys.stdout.write("Preprocessing '"+filename+"'...")
         if filename[-2:] == 'gz':
             handle = gzip.open(filename, "r")
         else:
             handle = open(filename, "r")
-
-        # Output output file
-        ofilename = output_filename[individual]
-        if ofilename[-2:] == 'gz':
-            ohandle = gzip.open(ofilename, "w")
-        else:
-            ohandle = open(ofilename, "w")
-            
-        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
-        vcf_writer = vcf.Writer(ohandle, vcf_template)
-
 
         # Skip header
         handle.next()
@@ -112,16 +100,30 @@ def main(args):
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
-            # Get variants
-            #if vcfDict.has_key(int(c_pos)):
-            #    print("ok")
-            vcf_writer.write_record(vcfRecords[individual][int(pos)])
+            record = vcfRecords[individual][int(pos)]
 
-        ohandle.close()
+
         handle.close()
-
         individual += 1
 
+
+
+
+    if False:
+        # Open output file
+        ofilename = output_filename[individual]
+        if ofilename[-2:] == 'gz':
+            ohandle = gzip.open(ofilename, "w")
+        else:
+            ohandle = open(ofilename, "w")
+            
+        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
+        vcf_writer = vcf.Writer(ohandle, vcf_template)
+
+
+        vcf_writer.write_record()
+
+        ohandle.close()
 
 
 ##############################################################
@@ -130,8 +132,8 @@ def main(args):
 def usage():
     print("""HLAxPreparePhasing version """+VERSION+""" by Rune M. Friborg (updated """+UPDATED+""")
 Usage:
-  HLAxPreparePhasing --f-vcf=<file> --f-fa=<fasta file> --f-input=<input file> --f-output=<output file>\
-    --m-vcf=<file> --m-fa=<fasta file> --m-input=<input file> --m-output=<output file> \
+  HLAxPreparePhasing --f-vcf=<file> --f-fa=<fasta file> --f-input=<input file> \
+    --m-vcf=<file> --m-fa=<fasta file> --m-input=<input file> \
     --c-vcf=<file> --c-fa=<fasta file> --c-input=<input file> --c-output=<output file>
 """)
 
@@ -141,11 +143,9 @@ class ArgContainer():
         self.f_vcf    = ""
         self.f_fa     = ""
         self.f_input  = ""
-        self.f_output  = ""
         self.m_vcf    = ""
         self.m_fa     = ""
         self.m_input  = ""
-        self.m_output  = ""
         self.c_vcf    = ""
         self.c_fa     = ""
         self.c_input  = ""
@@ -162,9 +162,6 @@ class ArgContainer():
         if not self.f_input:
             sys.stderr.write("Missing argument: --f-input\n")
             err = 1
-        if not self.f_output:
-            sys.stderr.write("Missing argument: --f-output\n")
-            err = 1
         if not self.m_vcf:
             sys.stderr.write("Missing argument: --m-vcf\n")
             err = 1
@@ -173,9 +170,6 @@ class ArgContainer():
             err = 1
         if not self.m_input:
             sys.stderr.write("Missing argument: --m-input\n")
-            err = 1
-        if not self.m_output:
-            sys.stderr.write("Missing argument: --m-output\n")
             err = 1
         if not self.c_vcf:
             sys.stderr.write("Missing argument: --c-vcf\n")
@@ -200,7 +194,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "f-input=", "f-output=", "m-vcf=", "m-fa=", "m-input=", "m-output=", "c-vcf=", "c-fa=", "c-input=", "c-output="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "f-input=", "m-vcf=", "m-fa=", "m-input=", "c-vcf=", "c-fa=", "c-input=", "c-output="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -218,16 +212,12 @@ if __name__ == '__main__':
             args.f_fa = a
         elif o == "--f-input":
             args.f_input = a
-        elif o == "--f-output":
-            args.f_output = a
         elif o == "--m-vcf":
             args.m_vcf = a
         elif o == "--m-fa":
             args.m_fa = a
         elif o == "--m-input":
             args.m_input = a
-        elif o == "--m-output":
-            args.m_output = a
         elif o == "--c-vcf":
             args.c_vcf = a
         elif o == "--c-fa":
