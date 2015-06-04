@@ -140,8 +140,11 @@ def main(args):
             else:
                 # Search fasta
 
-                # Correct for one-indexing
-                fasta_c_pos = c_pos-1
+                # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
+                # fasta_c_pos = c_pos-1
+                fasta_c_pos = c_pos
+
+
 
                 # Get variants
                 cv = []
