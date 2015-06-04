@@ -1,0 +1,1 @@
+./HLAxPreparePhasing.py --f-vcf=1089-01.vcf --f-fa=1089-01.one.trimmed.fa.gz --f-input=1089-01.f_rc_out.txt --f-output=1089-01.gt.vcf --m-vcf=1089-02.vcf --m-fa=1089-02.one.trimmed.fa.gz --m-input=1089-02.m_rc_out.txt --m-output=1089-02.gt.vcf --c-vcf=1089-06.vcf --c-fa=1089-06.one.trimmed.fa.gz --c-input=1089-06.c_rc_out.txt --c-output=1089-06.gt.vcf
