@@ -29,8 +29,6 @@ import vcf
 
 VERSION="0.02"
 UPDATED="2015-06-08"
-VCF_OUTPUT_HEADER="CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tFATHER\tMOTHER\tCHILD"
-VCF_OUTPUT_TEMPLATE="..."
 
 ##############################################################
 ####################### Classes #################################
@@ -166,7 +164,7 @@ class JMJProcess():
                     new_variants[c_pos] = (pos, cv)
         
         # Add newly found custom variants
-        self.custom_variants.append((filename, new_variants))
+        self.custom_variants.append(new_variants)
         
         sys.stdout.write("done\n")
         handle.close()
@@ -216,11 +214,81 @@ class JMJProcess():
             if len(seq) > max_pos:
                 max_pos = len(seq)
 
+        # Write header
+        ohandle.write("CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tFATHER\tMOTHER\tCHILD\n")
+
+        # Get Chromoson id
+        CHROM = self.child_vcf.values()[0].CHROM 
+        
         # Do a full sweep of all positions and construct the resulting record
         for i in xrange(0, max_pos):
             
+            POS = None
+            V = []
+                        
             if data.has_key(i):
-                print i
+                ref, alt, length, f_pos, m_pos = data[i]
+                POS = i
+                V.append(ref)
+                V.append(alt)
+
+                sys.stdout.write("X:"+str(POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
+
+                for j,p,v,s in zip([0,1],[f_pos, m_pos], parent_vcf, parent_seq):
+                    
+                    if p == 'NA':
+                        continue
+
+                    if v.has_key(int(p)):
+                        parent_record = v[int(p)]
+                        
+                        cv = [parent_record.REF]
+                        cv.extend([x.sequence for x in parent_record.ALT])
+
+                        sys.stdout.write("  parent_vcf:"+str(j)+":"+str(cv)+"\n")
+                        #V.extend(cv)
+
+                    else:
+                        # entry not found in VCF
+
+                        # Search fasta
+
+                        # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
+                        # fasta_c_pos = c_pos-1
+                        fasta_p = int(p)
+
+                        cv = []
+                        for item in V:
+                            cv.append(str(s[fasta_p:(fasta_p+len(item))]))
+
+                        # TODO special situation!!
+                        sys.stdout.write("  parent_fasta:"+str(j)+":"+str(cv)+"\n")
+
+            p = 0
+            for parent in self.custom_variants:
+                if parent.has_key(i):
+                    sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(parent[i])+"\n")
+
+                    p_pos = parent[i][0]
+                    
+                    if parent_vcf[p].has_key(p_pos):
+                        parent_record = parent_vcf[p][p_pos]
+                        cv = [parent_record.REF]
+                        cv.extend([x.sequence for x in parent_record.ALT])
+
+                        sys.stdout.write("  parent_vcf:"+str(p)+":"+str(cv)+"\n")
+                    else:
+                        # If value was not found in VCF, then p_pos is marked invalid and can be skipped
+                        pass
+                p += 1
+                                    
+                
+            #if POS != None:
+                
+                #ohandle.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS\n".format(CHROM, POS, V[0], ",".join(V[1:])))
+                
+            #if data.has_key(i):
+                #print i
 
             #ohandle.write(str(i) + "\n")
             
@@ -269,7 +337,7 @@ def main(args):
         jmj.preprocess(filename)
     
     #Processing the child
-    jmj.process(args.c_input, args.c_output, vcfRecords[0:1], faSequence[0:1])
+    jmj.process(args.c_input, args.c_output, vcfRecords[0:2], faSequence[0:2])
     
 
 
