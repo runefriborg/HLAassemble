@@ -218,7 +218,11 @@ class JMJProcess():
 
         # Do a full sweep of all positions and construct the resulting record
         for i in xrange(0, max_pos):
-            ohandle.write(str(i) + "\n")
+            
+            if data.has_key(i):
+                print i
+
+            #ohandle.write(str(i) + "\n")
             
             pass
             
