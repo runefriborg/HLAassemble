@@ -27,14 +27,17 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.01"
-UPDATED="2015-06-03"
+VERSION="0.02"
+UPDATED="2015-06-08"
 VCF_OUTPUT_TEMPLATE="template.vcf"
 
 ##############################################################
 ####################### Classes #################################
 
 class Fasta():
+    """
+    Reads a fasta files with a single sequence and stores it in self.seq
+    """
     def __init__(self, filename):
         sys.stdout.write("Reading '"+filename+"'...")
         if filename[-2:] == 'gz':
@@ -48,10 +51,14 @@ class Fasta():
             sys.stderr.write("Error!: "+str(len(records))+" sequences read. Fasta file '"+ filename +"' must have exactly one sequence!\n")
             sys.exit(1)
         
-        self.seq = records[0].seq
+        self.val = records[0].seq
         sys.stdout.write("done\n")
 
+
 class VCF():
+    """
+    Reads a VCF file and stores all records by position in self.dict
+    """
     def __init__(self, filename):
         sys.stdout.write("Reading '"+filename+"'...")
         if filename[-2:] == 'gz':
@@ -64,35 +71,35 @@ class VCF():
             vcfDict[record.POS] = record
         handle.close()
 
-        self.dict = vcfDict
+        self.val = vcfDict
         sys.stdout.write("done\n")
+
+
+class JMJProcess():
+    """
+    Descripe the process.
+    """
+    def __init__(self, vcf, seq):
+        self.child_vcf = vcf.val
+        self.child_seq = seq.val
+
+        #self.reverse_child_variants= {}
+
+        self.custom_variants = []
+
+        #self.Variants = ({},{}) # indexed using the positions of the child
+
+
+        pass
+
+    def preprocess(self, filename):
+        """
+        For every variant in the mother and father identify the variants in the child
         
-##############################################################
-####################### Main #################################
+        Use this method for the father and mother
+        """
+        new_variants= {}
 
-def main(args):
-
-    # Read Fasta files
-    faSequence = []
-    for filename in [args.f_fa, args.m_fa, args.c_fa]:
-        faSequence.append(Fasta(filename))
-
-
-    # Read vcf file
-    vcfRecords = []
-    for filename in [args.f_vcf, args.m_vcf, args.c_vcf]:
-        vcfRecords.append(VCF(filename))
-
-
-    # Read input file
-    individual = 0                # 0 = father, 1 = mother, 2 = child
-    childVCFRecords = vcfRecords[2].dict
-    childFaSequence = faSequence[2].seq
-    Variants = ({},{}) # indexed using the positions of the child
-    childVariants = {}
-
-    # Preprocessing the data for father and mother
-    for filename in [args.f_input, args.m_input]:
         sys.stdout.write("Preprocessing '"+filename+"'...")
         if filename[-2:] == 'gz':
             handle = gzip.open(filename, "r")
@@ -117,7 +124,6 @@ def main(args):
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
-
             #record.alleles.append('K')
             #print(record.alleles)
             
@@ -127,29 +133,27 @@ def main(args):
                 continue
 
             # Fetch VCF record
-            record = vcfRecords[individual].dict[int(pos)]
+            #record = vcf[int(pos)]
 
             # Type cast to int
             pos = int(pos)
             c_pos = int(c_pos)
 
-            # Add variant
-            v = [record.REF]
-            v.extend([x.sequence for x in record.ALT])
-            Variants[individual][c_pos] = (pos, v, record)
+            # Extract variants
+            v = [ref, alt]
 
-            if childVCFRecords.has_key(c_pos):
+            if self.child_vcf.has_key(c_pos):
                 # Child has a variant on the same position in it's VCF                
-                child_record = childVCFRecords[c_pos]
+                child_record = self.child_vcf[c_pos]
 
                 cv = [child_record.REF]
                 cv.extend([x.sequence for x in child_record.ALT])
 
-                if childVariants.has_key(c_pos):
-                    childVariants[c_pos][1].extend(cv)
+                if new_variants.has_key(c_pos):
+                    # Variant conflict, Ignore variant!
+                    new_variants[c_pos] = (None, None)
                 else:
-                    childVariants[c_pos] = (c_pos, cv)
-
+                    new_variants[c_pos] = (pos, cv)
             else:
                 # Search fasta
 
@@ -160,87 +164,118 @@ def main(args):
                 # Get variants
                 cv = []
                 for item in v:
-                    cv.append(str(childFaSequence[fasta_c_pos:(fasta_c_pos+len(item))]))
+                    cv.append(str(self.child_seq[fasta_c_pos:(fasta_c_pos+len(item))]))
 
-                if childVariants.has_key(c_pos):
-                    childVariants[c_pos][1].extend(cv)
+                if new_variants.has_key(c_pos):
+                    # Variant conflict, Ignore variant!
+                    new_variants[c_pos] = (None, None)
                 else:
-                    childVariants[c_pos] = (c_pos, cv)
-            
+                    new_variants[c_pos] = (pos, cv)
+        
+        # Add newly found custom variants
+        self.custom_variants.append((filename, new_variants))
         
         sys.stdout.write("done\n")
         handle.close()
-        individual += 1
         
+    def process(self, filename, ofilename, parent_vcf_obj, parent_seq_obj):
 
-    # Make a sorted index for childVariants positions
-    childVariantPos = childVariants.keys()
-    childVariantPos.sort()
-    childVariantPosIndex = 0
+        parent_vcf = [x.val for x in parent_vcf_obj]
+        parent_seq = [x.val for x in parent_seq_obj]
 
-    def getChildVariantPosBefore(pos):
-        # Check for available variant positions before current record
-        if childVariantPosIndex < len(childVariantPos) and childVariantPos[childVariantPosIndex] < pos:
-            other_pos = childVariantPos[childVariantPosIndex]
-            childVariantPosIndex += 1
-            return other_pos
-        return None
+        sys.stdout.write("Processing '"+filename+"'...")
+        if filename[-2:] == 'gz':
+            handle = gzip.open(filename, "r")
+        else:
+            handle = open(filename, "r")
+
+        # Open output file
+        if ofilename[-2:] == 'gz':
+            ohandle = gzip.open(ofilename, "w")
+        else:
+            ohandle = open(ofilename, "w")
+
+        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
+        vcf_writer = vcf.Writer(ohandle, vcf_template)
+
+        # Skip header
+        handle.next()
+
+        
+        # Parse lines
+        i = 0
+        data = {}
+        for line in handle:
+            try:
+                i += 1
+
+                if line == "\n":
+                    continue
+
+                l = line.strip().split('\t')
+                pos, ref, alt, length, f_pos, m_pos, c_pos = l
+                
+                data[int(pos)] = (ref, alt, length, f_pos, m_pos)
+            except ValueError:
+                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
+                sys.exit(1) 
+
+        # Find max position
+        max_pos = 0
+        for seq in parent_seq + [self.child_seq]:
+            if len(seq) > max_pos:
+                max_pos = len(seq)
+
+        # Do a full sweep of all positions and construct the resulting record
+        for i in xrange(0, max_pos):
+            pass
+            
+
+            #other_pos = getChildVariantPosBefore(pos)
+            #while (other_pos != None):
+            #    print(other_pos)
+            #    other_pos = getChildVariantPosBefore(pos)        
+        
+            #record = childVCFRecords[int(pos)]
+
+            #record.ALT.append(vcf.model._Substitution("A"))
+            #print(record.ALT)
+
+            #vcf_writer.write_record(record)
+
+        sys.stdout.write("done\n")
+        ohandle.close()
+        handle.close()
     
 
+        
+        
+##############################################################
+####################### Main #################################
+
+def main(args):
+
+    # Read vcf file
+    vcfRecords = []
+    for filename in [args.f_vcf, args.m_vcf, args.c_vcf]:
+        vcfRecords.append(VCF(filename))
+
+    # Read Fasta files
+    faSequence = []
+    for filename in [args.f_fa, args.m_fa, args.c_fa]:
+        faSequence.append(Fasta(filename))
+
+    # The main object for storing and computing the phasing values.
+    jmj = JMJProcess(vcfRecords[2], faSequence[2])
+
+    # Preprocessing the data for father and mother
+    for filename in [args.f_input, args.m_input]:
+        jmj.preprocess(filename)
+    
     #Processing the child
-    filename = args.c_input
-    sys.stdout.write("Processing '"+filename+"'...")
-    if filename[-2:] == 'gz':
-        handle = gzip.open(filename, "r")
-    else:
-        handle = open(filename, "r")
+    jmj.process(args.c_input, args.c_output, vcfRecords[0:1], faSequence[0:1])
+    
 
-    # Open output file
-    ofilename = args.c_output
-    if ofilename[-2:] == 'gz':
-        ohandle = gzip.open(ofilename, "w")
-    else:
-        ohandle = open(ofilename, "w")
-    vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
-    vcf_writer = vcf.Writer(ohandle, vcf_template)
-
-
-    # Skip header
-    handle.next()
-
-    # Parse lines
-    i = 0
-    for line in handle:
-        try:
-            i += 1
-
-            if line == "\n":
-                continue
-
-            l = line.strip().split('\t')
-            pos, ref, alt, length, f_pos, m_pos, c_pos = l
-        except ValueError:
-            sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
-            sys.exit(1)            
-
-        # Typecast
-        pos = int(pos) 
-        
-        other_pos = getChildVariantPosBefore(pos)
-        while (other_pos != None):
-            print(other_pos)
-            other_pos = getChildVariantPosBefore(pos)        
-        
-        record = childVCFRecords[int(pos)]
-
-        #record.ALT.append(vcf.model._Substitution("A"))
-        #print(record.ALT)
-
-        vcf_writer.write_record(record)
-
-    sys.stdout.write("done\n")
-    ohandle.close()
-    handle.close()
 
 
 ##############################################################
