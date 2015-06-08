@@ -29,7 +29,8 @@ import vcf
 
 VERSION="0.02"
 UPDATED="2015-06-08"
-VCF_OUTPUT_TEMPLATE="template.vcf"
+VCF_OUTPUT_HEADER="CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tFATHER\tMOTHER\tCHILD"
+VCF_OUTPUT_TEMPLATE="..."
 
 ##############################################################
 ####################### Classes #################################
@@ -82,15 +83,7 @@ class JMJProcess():
     def __init__(self, vcf, seq):
         self.child_vcf = vcf.val
         self.child_seq = seq.val
-
-        #self.reverse_child_variants= {}
-
         self.custom_variants = []
-
-        #self.Variants = ({},{}) # indexed using the positions of the child
-
-
-        pass
 
     def preprocess(self, filename):
         """
@@ -195,9 +188,6 @@ class JMJProcess():
         else:
             ohandle = open(ofilename, "w")
 
-        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
-        vcf_writer = vcf.Writer(ohandle, vcf_template)
-
         # Skip header
         handle.next()
 
@@ -228,6 +218,8 @@ class JMJProcess():
 
         # Do a full sweep of all positions and construct the resulting record
         for i in xrange(0, max_pos):
+            ohandle.write(str(i) + "\n")
+            
             pass
             
 

@@ -1,6 +1,0 @@
-##fileformat=VCFv4.1
-##fileDate=20090805
-##source=HLAassemble
-##reference=IndividualPanGenome
-##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	FATHER	MOTHER	CHILD
