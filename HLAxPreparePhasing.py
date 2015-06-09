@@ -216,18 +216,25 @@ class JMJProcess():
         # Do a full sweep of all positions and construct the resulting record
         for i in xrange(0, max_pos):
             
-            POS = None
-            V = []
+            CHILD_POS = None
+            CHILD_REF = None
+            CHILD_ALT = None
+            PARENT_POS = [None, None]
+            PARENT_REF = [None, None]
+            PARENT_ALT = [None, None]
                         
             if data.has_key(i):
                 ref, alt, length, f_pos, m_pos = data[i]
-                POS = i
-                V.append(ref)
-                V.append(alt)
 
-                sys.stdout.write("X:"+str(POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
+                CHILD_POS = i
+                CHILD_REF = ref
+                CHILD_ALT = alt
+                PARENT_POS[0] = f_pos
+                PARENT_POS[1] = m_pos
 
-                for j,p,v,s in zip([0,1],[f_pos, m_pos], parent_vcf, parent_seq):
+                sys.stdout.write("X:"+str(CHILD_POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
+
+                for j,p,v,s in zip([0,1], PARENT_POS, parent_vcf, parent_seq):
                     
                     if p == 'NA':
                         continue
@@ -235,10 +242,14 @@ class JMJProcess():
                     if v.has_key(int(p)):
                         parent_record = v[int(p)]
                         
-                        cv = [parent_record.REF]
-                        cv.extend([x.sequence for x in parent_record.ALT])
+                        PARENT_REF[j] = parent_record.REF
+                        PARENT_ALT[j] = parent_record.ALT[0].sequence
 
-                        sys.stdout.write("  parent_vcf:"+str(j)+":"+str(cv)+"\n")
+                        if len(parent_record.ALT) != 1:
+                            sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
+                            sys.exit(1)
+
+                        sys.stdout.write("  parent_vcf:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
 
                     else:
                         # entry not found in VCF
@@ -249,40 +260,57 @@ class JMJProcess():
                         # fasta_c_pos = c_pos-1
                         fasta_p = int(p)
 
-                        cv = []
-                        for item in V:
-                            cv.append(str(s[fasta_p:(fasta_p+len(item))]))
+                        PARENT_REF[j] = str(s[fasta_p:(fasta_p+len(CHILD_REF))])
+                        PARENT_ALT[j] = str(s[fasta_p:(fasta_p+len(CHILD_ALT))])
 
-                        sys.stdout.write("  parent_fasta:"+str(j)+":"+str(cv)+"\n")
+                        sys.stdout.write("  parent_fasta:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
 
             p = 0
-            for parent in self.custom_variants:
-                if parent.has_key(i):
-                    sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(parent[i])+"\n")
+            for D in self.custom_variants:
+                if D.has_key(i):
+                    sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(D[i])+"\n")
 
-                    p_pos = parent[i][0]
+                    p_pos = D[i][0]
+                    if (p_pos == None):
+                        continue
+
+                    CHILD_POS = i
+
+                    # Always select the shortest variant from two variant from same position found in both parents
+                    if CHILD_REF == None or len(D[i][1][0]) < len(CHILD_REF):
+                        CHILD_REF = D[i][1][0]                        
+                    if CHILD_ALT == None or len(D[i][1][1]) < len(CHILD_ALT):
+                        CHILD_ALT = D[i][1][1]
+
                     
                     if parent_vcf[p].has_key(p_pos):
                         parent_record = parent_vcf[p][p_pos]
-                        cv = [parent_record.REF]
-                        cv.extend([x.sequence for x in parent_record.ALT])
 
-                        sys.stdout.write("  parent_vcf:"+str(p)+":"+str(cv)+"\n")
+                        PARENT_POS[p] = p_pos
+                        PARENT_REF[p] = parent_record.REF
+                        PARENT_ALT[p] = parent_record.ALT[0].sequence
+
+                        if len(parent_record.ALT) != 1:
+                            sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
+                            sys.exit(1)
+
+                        sys.stdout.write("  parent_vcf:"+str(p)+":"+str([PARENT_REF[p], PARENT_ALT[p]])+"\n")
                     else:
                         # If value was not found in VCF, then p_pos is marked invalid and can be skipped
+                        # The reason being that the indexes are generated from the VCF file.
                         pass
                 p += 1
+
                                     
-                
-            #if POS != None:
-                
+
+            if CHILD_POS != None:
+                pass
                 #ohandle.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS\n".format(CHROM, POS, V[0], ",".join(V[1:])))
                 
             #if data.has_key(i):
                 #print i
 
             #ohandle.write(str(i) + "\n")
-            
             
         sys.stdout.write("done\n")
         ohandle.close()
