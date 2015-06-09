@@ -27,8 +27,8 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.02"
-UPDATED="2015-06-08"
+VERSION="0.03"
+UPDATED="2015-06-09"
 
 ##############################################################
 ####################### Classes #################################
@@ -120,7 +120,7 @@ class JMJProcess():
                 continue
 
             # Type cast to int
-            pos = int(pos)
+            pos = int(pos)    
             c_pos = int(c_pos)
 
             # Extract variants
@@ -135,9 +135,9 @@ class JMJProcess():
 
                 if new_variants.has_key(c_pos):
                     # Variant conflict, Ignore variant!
-                    new_variants[c_pos] = (None, None)
+                    new_variants[c_pos] = None
                 else:
-                    new_variants[c_pos] = (pos, cv)
+                    new_variants[c_pos] = ((f_pos, m_pos), cv)
             else:
                 # Search fasta
 
@@ -152,9 +152,9 @@ class JMJProcess():
 
                 if new_variants.has_key(c_pos):
                     # Variant conflict, Ignore variant!
-                    new_variants[c_pos] = (None, None)
+                    new_variants[c_pos] = None
                 else:
-                    new_variants[c_pos] = (pos, cv)
+                    new_variants[c_pos] = ((f_pos, m_pos), cv)
         
         # Add newly found custom variants
         self.custom_variants.append(new_variants)
@@ -207,11 +207,17 @@ class JMJProcess():
             if len(seq) > max_pos:
                 max_pos = len(seq)
 
-        # Write header
-        ohandle.write("CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tFATHER\tMOTHER\tCHILD\n")
-
         # Get Chromoson id
-        CHROM = self.child_vcf.values()[0].CHROM 
+        PRE_CHROM = self.child_vcf.values()[0].CHROM[:4] 
+        CHILD_CHROM = self.child_vcf.values()[0].CHROM
+
+        # Write header
+        ohandle.write('##fileformat=VCFv4.1\n')
+        ohandle.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
+        ohandle.write('##FORMAT=<ID=PS,Number=1,Type=Integer,Description="Position">\n')
+        #ohandle.write('##INFO=<ID=VT,Number=1,Type=String,Description="indicates what type of variant the line represents">')
+        ohandle.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{0}-01\t{0}-02\t{1}\n".format(PRE_CHROM, CHILD_CHROM))
+
         
         # Do a full sweep of all positions and construct the resulting record
         for i in xrange(0, max_pos):
@@ -232,7 +238,7 @@ class JMJProcess():
                 PARENT_POS[0] = f_pos
                 PARENT_POS[1] = m_pos
 
-                sys.stdout.write("X:"+str(CHILD_POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
+                #sys.stdout.write("X:"+str(CHILD_POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
 
                 for j,p,v,s in zip([0,1], PARENT_POS, parent_vcf, parent_seq):
                     
@@ -249,7 +255,7 @@ class JMJProcess():
                             sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
                             sys.exit(1)
 
-                        sys.stdout.write("  parent_vcf:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
+                        #sys.stdout.write("  parent_vcf:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
 
                     else:
                         # entry not found in VCF
@@ -263,16 +269,12 @@ class JMJProcess():
                         PARENT_REF[j] = str(s[fasta_p:(fasta_p+len(CHILD_REF))])
                         PARENT_ALT[j] = str(s[fasta_p:(fasta_p+len(CHILD_ALT))])
 
-                        sys.stdout.write("  parent_fasta:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
+                        #sys.stdout.write("  parent_fasta:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
 
             p = 0
             for D in self.custom_variants:
-                if D.has_key(i):
-                    sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(D[i])+"\n")
-
-                    p_pos = D[i][0]
-                    if (p_pos == None):
-                        continue
+                if D.has_key(i) and D[i] != None:
+                    #sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(D[i])+"\n")
 
                     CHILD_POS = i
 
@@ -282,36 +284,95 @@ class JMJProcess():
                     if CHILD_ALT == None or len(D[i][1][1]) < len(CHILD_ALT):
                         CHILD_ALT = D[i][1][1]
 
-                    
-                    if parent_vcf[p].has_key(p_pos):
-                        parent_record = parent_vcf[p][p_pos]
 
-                        PARENT_POS[p] = p_pos
-                        PARENT_REF[p] = parent_record.REF
-                        PARENT_ALT[p] = parent_record.ALT[0].sequence
+                    # Fetch variants from both parents
+                    for sub_p in range(2):
+                        p_pos = D[i][0][sub_p]
+                        
+                        # Skip if NA
+                        if p_pos == 'NA':
+                            continue
 
-                        if len(parent_record.ALT) != 1:
-                            sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
-                            sys.exit(1)
+                        # Typecast to int
+                        p_pos = int(p_pos)
 
-                        sys.stdout.write("  parent_vcf:"+str(p)+":"+str([PARENT_REF[p], PARENT_ALT[p]])+"\n")
-                    else:
-                        # If value was not found in VCF, then p_pos is marked invalid and can be skipped
-                        # The reason being that the indexes are generated from the VCF file.
-                        pass
+                        # Fetch from VCF
+                        if parent_vcf[sub_p].has_key(p_pos):
+                            parent_record = parent_vcf[sub_p][p_pos]
+
+                            PARENT_POS[sub_p] = p_pos
+                            PARENT_REF[sub_p] = parent_record.REF
+                            PARENT_ALT[sub_p] = parent_record.ALT[0].sequence
+
+                            if len(parent_record.ALT) != 1:
+                                sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
+                                sys.exit(1)
+
+                            #sys.stdout.write("  parent_vcf:"+str(sub_p)+":"+str([PARENT_REF[sub_p], PARENT_ALT[sub_p]])+"\n")
+                        elif p != sub_p:
+
+                            # entry not found in VCF
+                            # Search fasta
+
+                            # Skip searching fasta if already set
+                            if PARENT_POS[sub_p] != None:
+                                continue
+
+                            s = parent_seq[sub_p]
+
+                            # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
+                            # fasta_c_pos = c_pos-1
+                            fasta_pos = int(p_pos)
+
+                            PARENT_POS[sub_p] = p_pos
+                            PARENT_REF[sub_p] = str(s[fasta_pos:(fasta_pos+len(CHILD_REF))])
+                            PARENT_ALT[sub_p] = str(s[fasta_pos:(fasta_pos+len(CHILD_ALT))])
+
+                            #sys.stdout.write("  parent_fasta:"+str(sub_p)+":"+str([PARENT_REF[sub_p], PARENT_ALT[sub_p]])+"\n")
+
+
+                        else:
+                            # If value was not found in VCF, then p_pos is marked invalid and can be skipped
+                            # The reason being that the indexes are generated from the VCF file.
+                            pass
+                        
                 p += 1
 
-                                    
-
-            if CHILD_POS != None:
-                pass
-                #ohandle.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS\n".format(CHROM, POS, V[0], ",".join(V[1:])))
                 
-            #if data.has_key(i):
-                #print i
+            if CHILD_POS != None:
 
-            #ohandle.write(str(i) + "\n")
-            
+                # CHILD_POS, CHILD_REF, CHILD_ALT
+                # PARENT_POS[0,1], PARENT_REF[0,1], PARENT_ALT[0,1]
+                
+                # Construct variant list
+                V = [CHILD_REF, CHILD_ALT]
+                for p in range(2):
+                    if PARENT_REF[p] and PARENT_ALT[p]:                        
+                        V.append(PARENT_REF[p])
+                        V.append(PARENT_ALT[p])
+                
+                def uniq(input):
+                    output = []
+                    for x in input:
+                        if x not in output:
+                            output.append(x)
+                    return output
+
+                # Make variant list into a unique list
+                V = uniq(V)
+
+                ohandle.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS".format(PRE_CHROM, CHILD_POS, V[0], ",".join(V[1:])))
+                
+                # Output genotype for father and mother
+                for p in range(2):
+                    if PARENT_REF[p] and PARENT_ALT[p]: 
+                        ohandle.write("\t{0}/{1}:{2}".format(V.index(PARENT_REF[p]), V.index(PARENT_ALT[p]), PARENT_POS[p]))
+                    else:
+                        ohandle.write("\t./.:0")
+
+                # Output genotype for child
+                ohandle.write("\t{0}/{1}:{2}\n".format(V.index(CHILD_REF), V.index(CHILD_ALT), CHILD_POS))
+
         sys.stdout.write("done\n")
         ohandle.close()
         handle.close()
