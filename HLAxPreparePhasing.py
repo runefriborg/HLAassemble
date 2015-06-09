@@ -115,16 +115,9 @@ class JMJProcess():
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
-            #record.alleles.append('K')
-            #print(record.alleles)
-            
-            #sys.exit(0)
             # Skip if NA
             if (c_pos == 'NA'):
                 continue
-
-            # Fetch VCF record
-            #record = vcf[int(pos)]
 
             # Type cast to int
             pos = int(pos)
@@ -246,7 +239,6 @@ class JMJProcess():
                         cv.extend([x.sequence for x in parent_record.ALT])
 
                         sys.stdout.write("  parent_vcf:"+str(j)+":"+str(cv)+"\n")
-                        #V.extend(cv)
 
                     else:
                         # entry not found in VCF
@@ -261,7 +253,6 @@ class JMJProcess():
                         for item in V:
                             cv.append(str(s[fasta_p:(fasta_p+len(item))]))
 
-                        # TODO special situation!!
                         sys.stdout.write("  parent_fasta:"+str(j)+":"+str(cv)+"\n")
 
             p = 0
@@ -292,21 +283,7 @@ class JMJProcess():
 
             #ohandle.write(str(i) + "\n")
             
-            pass
             
-
-            #other_pos = getChildVariantPosBefore(pos)
-            #while (other_pos != None):
-            #    print(other_pos)
-            #    other_pos = getChildVariantPosBefore(pos)        
-        
-            #record = childVCFRecords[int(pos)]
-
-            #record.ALT.append(vcf.model._Substitution("A"))
-            #print(record.ALT)
-
-            #vcf_writer.write_record(record)
-
         sys.stdout.write("done\n")
         ohandle.close()
         handle.close()
