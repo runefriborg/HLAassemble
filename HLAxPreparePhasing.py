@@ -27,8 +27,8 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.03"
-UPDATED="2015-06-09"
+VERSION="0.04"
+UPDATED="2015-06-10"
 
 ##############################################################
 ####################### Classes #################################
@@ -176,8 +176,11 @@ class JMJProcess():
         # Open output file
         if ofilename[-2:] == 'gz':
             ohandle = gzip.open(ofilename, "w")
+            ohandle_skipped = gzip.open(ofilename + ".skipped", "w")
         else:
             ohandle = open(ofilename, "w")
+            ohandle_skipped = open(ofilename + ".skipped", "w")
+
 
         # Skip header
         handle.next()
@@ -284,7 +287,6 @@ class JMJProcess():
                     if CHILD_ALT == None or len(D[i][1][1]) < len(CHILD_ALT):
                         CHILD_ALT = D[i][1][1]
 
-
                     # Fetch variants from both parents
                     for sub_p in range(2):
                         p_pos = D[i][0][sub_p]
@@ -330,7 +332,6 @@ class JMJProcess():
 
                             #sys.stdout.write("  parent_fasta:"+str(sub_p)+":"+str([PARENT_REF[sub_p], PARENT_ALT[sub_p]])+"\n")
 
-
                         else:
                             # If value was not found in VCF, then p_pos is marked invalid and can be skipped
                             # The reason being that the indexes are generated from the VCF file.
@@ -338,7 +339,6 @@ class JMJProcess():
                         
                 p += 1
 
-                
             if CHILD_POS != None:
 
                 # CHILD_POS, CHILD_REF, CHILD_ALT
@@ -361,20 +361,28 @@ class JMJProcess():
                 # Make variant list into a unique list
                 V = uniq(V)
 
-                ohandle.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS".format(PRE_CHROM, CHILD_POS, V[0], ",".join(V[1:])))
+                # Skip entry if the variant list has more or less than two variants.
+                if (len(V) == 2):
+                    h = ohandle
+                else:
+                    h = ohandle_skipped
+
+                h.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS".format(PRE_CHROM, CHILD_POS, V[0], ",".join(V[1:])))
                 
                 # Output genotype for father and mother
                 for p in range(2):
                     if PARENT_REF[p] and PARENT_ALT[p]: 
-                        ohandle.write("\t{0}/{1}:{2}".format(V.index(PARENT_REF[p]), V.index(PARENT_ALT[p]), PARENT_POS[p]))
+                        h.write("\t{0}/{1}:{2}".format(V.index(PARENT_REF[p]), V.index(PARENT_ALT[p]), PARENT_POS[p]))
                     else:
-                        ohandle.write("\t./.:0")
+                        h.write("\t./.:0")
 
                 # Output genotype for child
-                ohandle.write("\t{0}/{1}:{2}\n".format(V.index(CHILD_REF), V.index(CHILD_ALT), CHILD_POS))
+                h.write("\t{0}/{1}:{2}\n".format(V.index(CHILD_REF), V.index(CHILD_ALT), CHILD_POS))
+
 
         sys.stdout.write("done\n")
         ohandle.close()
+        ohandle_skipped.close()
         handle.close()
     
 
