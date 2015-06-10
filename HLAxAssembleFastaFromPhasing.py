@@ -2,17 +2,17 @@
 """
 
 Read input of format:
-var.f.pos	ref	alt	length	f.pos   m.pos   c.pos
-60		T	C	1	60      NA      NA
-2305		G	A	1       2305    NA      NA
-5181		AAAAAAA	AAAAAA	7    	5181    1541    1716
-6817		T	C	1       6817    3170    3343
+[root@fe1 HLAassemble]# head 1089.phase.info.txt 
+1089 1716 AAAAAAA AAAAAA no_mendelian_violation AAAAAAA/AAAAAA AAAAAAA/AAAAAA AAAAAAA/AAAAAA
+1089 3343 C T no_mendelian_violation C|C C|T C|C
+1089 9494 A AA no_mendelian_violation A/AA A/AA A/AA
+1089 10862 C T no_mendelian_violation C|C C|T C|C
+1089 12030 T C no_mendelian_violation T|T T|C T|T
+1089 13524 C A no_mendelian_violation C|C C|A C|C
 
-Read the matching VCF and Fasta for the data above.
+Read the matching VCF and Fasta for each of the individuals in the trio.
 
-For every entry in the primary format, find the variant in either the VCF file or the fasta.
-
-Output final results for phasing.
+Based on the phasing input, output six new fasta files with corresponding VCF files
 
 Author: Rune Moellegaard Friborg <runef@birc.au.dk>
 """
@@ -27,7 +27,7 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.04"
+VERSION="0.01"
 UPDATED="2015-06-10"
 
 ##############################################################
@@ -414,16 +414,14 @@ def main(args):
     jmj.process(args.c_input, args.c_output, vcfRecords[0:2], faSequence[0:2])
     
 
-
-
 ##############################################################
 ######################### Help ###############################
 
 def usage():
-    print("""HLAxPreparePhasing version """+VERSION+""" by Rune M. Friborg (updated """+UPDATED+""")
+    print("""HLAxAssembleFastaFromPhasing version """+VERSION+""" by Rune M. Friborg (updated """+UPDATED+""")
 Usage:
-  HLAxPreparePhasing --f-vcf=<file> --f-fa=<fasta file> --f-input=<input file> \
-    --m-vcf=<file> --m-fa=<fasta file> --m-input=<input file> \
+  HLAxAssembleFastaFromPhasing --f-vcf=<file> --f-fa=<fasta file> \
+    --m-vcf=<file> --m-fa=<fasta file> \
     --c-vcf=<file> --c-fa=<fasta file> --c-input=<input file> --c-output=<output file>
 """)
 

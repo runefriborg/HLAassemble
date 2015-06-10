@@ -324,7 +324,7 @@ class JMJProcess():
 
                             # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
                             # fasta_c_pos = c_pos-1
-                            fasta_pos = int(p_pos)
+                            fasta_pos = int(p_pos) 
 
                             PARENT_POS[sub_p] = p_pos
                             PARENT_REF[sub_p] = str(s[fasta_pos:(fasta_pos+len(CHILD_REF))])
