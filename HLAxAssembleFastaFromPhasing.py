@@ -403,6 +403,7 @@ def main(args):
     for filename in [args.f_fa, args.m_fa, args.c_fa]:
         faSequence.append(Fasta(filename))
 
+    sys.exit(0)
     # The main object for storing and computing the phasing values.
     jmj = JMJProcess(vcfRecords[2], faSequence[2])
 
@@ -422,7 +423,7 @@ def usage():
 Usage:
   HLAxAssembleFastaFromPhasing --f-vcf=<file> --f-fa=<fasta file> \
     --m-vcf=<file> --m-fa=<fasta file> \
-    --c-vcf=<file> --c-fa=<fasta file> --c-input=<input file> --c-output=<output file>
+    --c-vcf=<file> --c-fa=<fasta file> --c-input=<input file> --c-output-prefix=<file prefix>
 """)
 
 
@@ -430,14 +431,12 @@ class ArgContainer():
     def __init__(self):
         self.f_vcf    = ""
         self.f_fa     = ""
-        self.f_input  = ""
         self.m_vcf    = ""
         self.m_fa     = ""
-        self.m_input  = ""
         self.c_vcf    = ""
         self.c_fa     = ""
         self.c_input  = ""
-        self.c_output  = ""
+        self.c_output_prefix  = ""
 
     def ok(self):
         err = 0
@@ -447,17 +446,11 @@ class ArgContainer():
         if not self.f_fa:
             sys.stderr.write("Missing argument: --f-fa\n")
             err = 1
-        if not self.f_input:
-            sys.stderr.write("Missing argument: --f-input\n")
-            err = 1
         if not self.m_vcf:
             sys.stderr.write("Missing argument: --m-vcf\n")
             err = 1
         if not self.m_fa:
             sys.stderr.write("Missing argument: --m-fa\n")
-            err = 1
-        if not self.m_input:
-            sys.stderr.write("Missing argument: --m-input\n")
             err = 1
         if not self.c_vcf:
             sys.stderr.write("Missing argument: --c-vcf\n")
@@ -468,8 +461,8 @@ class ArgContainer():
         if not self.c_input:
             sys.stderr.write("Missing argument: --c-input\n")
             err = 1
-        if not self.c_output:
-            sys.stderr.write("Missing argument: --c-output\n")
+        if not self.c_output_prefix:
+            sys.stderr.write("Missing argument: --c-output-prefix\n")
             err = 1
 
         if err:
@@ -482,7 +475,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "f-input=", "m-vcf=", "m-fa=", "m-input=", "c-vcf=", "c-fa=", "c-input=", "c-output="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "m-vcf=", "m-fa=", "c-vcf=", "c-fa=", "c-input=", "c-output-prefix="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -498,22 +491,18 @@ if __name__ == '__main__':
             args.f_vcf = a
         elif o == "--f-fa":
             args.f_fa = a
-        elif o == "--f-input":
-            args.f_input = a
         elif o == "--m-vcf":
             args.m_vcf = a
         elif o == "--m-fa":
             args.m_fa = a
-        elif o == "--m-input":
-            args.m_input = a
         elif o == "--c-vcf":
             args.c_vcf = a
         elif o == "--c-fa":
             args.c_fa = a
         elif o == "--c-input":
             args.c_input = a
-        elif o == "--c-output":
-            args.c_output = a
+        elif o == "--c-output-prefix":
+            args.c_output_prefix = a
         elif o == "--help":
             usage()
             sys.exit()
