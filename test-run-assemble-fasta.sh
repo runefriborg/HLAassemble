@@ -1,1 +1,1 @@
-./HLAxAssembleFastaFromPhasing.py --f-vcf=1089-01.vcf --f-fa=1089-01.one.trimmed.fa.gz --m-vcf=1089-02.vcf --m-fa=1089-02.one.trimmed.fa.gz --c-vcf=1089-06.vcf --c-fa=1089-06.one.trimmed.fa.gz --c-input=1089.phase.info.txt --c-output-prefix=1089.haplotypes
+./HLAxAssembleFastaFromPhasing.py --f-vcf=1089-01.vcf --f-fa=1089-01.one.trimmed.fa.gz --m-vcf=1089-02.vcf --m-fa=1089-02.one.trimmed.fa.gz --c-vcf=1089-06.vcf --c-fa=1089-06.one.trimmed.fa.gz --c-gt-vcf=1089-06.gt.vcf --c-input=1089.phase.info.txt --c-output-prefix=1089.haplotypes

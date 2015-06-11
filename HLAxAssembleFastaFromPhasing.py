@@ -403,7 +403,9 @@ def main(args):
     for filename in [args.f_fa, args.m_fa, args.c_fa]:
         faSequence.append(Fasta(filename))
 
-    sys.exit(0)
+    # Read GT vcf file
+    vcfGT = GT_VCF(args.c_gt_vcf)
+
     # The main object for storing and computing the phasing values.
     jmj = JMJProcess(vcfRecords[2], faSequence[2])
 
@@ -423,7 +425,7 @@ def usage():
 Usage:
   HLAxAssembleFastaFromPhasing --f-vcf=<file> --f-fa=<fasta file> \
     --m-vcf=<file> --m-fa=<fasta file> \
-    --c-vcf=<file> --c-fa=<fasta file> --c-input=<input file> --c-output-prefix=<file prefix>
+    --c-vcf=<file> --c-fa=<fasta file> --c-gt-vcf=<output from previous HLAx stage> --c-input=<input file> --c-output-prefix=<file prefix>
 """)
 
 
@@ -435,6 +437,7 @@ class ArgContainer():
         self.m_fa     = ""
         self.c_vcf    = ""
         self.c_fa     = ""
+        self.c_gt_vcf  = ""
         self.c_input  = ""
         self.c_output_prefix  = ""
 
@@ -458,6 +461,9 @@ class ArgContainer():
         if not self.c_fa:
             sys.stderr.write("Missing argument: --c-fa\n")
             err = 1
+        if not self.c_gt_vcf:
+            sys.stderr.write("Missing argument: --c-gt-vcf\n")
+            err = 1
         if not self.c_input:
             sys.stderr.write("Missing argument: --c-input\n")
             err = 1
@@ -475,7 +481,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "m-vcf=", "m-fa=", "c-vcf=", "c-fa=", "c-input=", "c-output-prefix="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "f-vcf=", "f-fa=", "m-vcf=", "m-fa=", "c-vcf=", "c-fa=", "c-gt-vcf=", "c-input=", "c-output-prefix="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -499,6 +505,8 @@ if __name__ == '__main__':
             args.c_vcf = a
         elif o == "--c-fa":
             args.c_fa = a
+        elif o == "--c-gt-vcf":
+            args.c_gt_vcf = a
         elif o == "--c-input":
             args.c_input = a
         elif o == "--c-output-prefix":
