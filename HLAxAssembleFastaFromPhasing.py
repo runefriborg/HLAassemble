@@ -187,7 +187,11 @@ class Assembler():
 
 
     def process(self, output_prefix):
-        pass
+        
+        # Open output files
+        for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
+            ohandle_vcf = [open(output_prefix + f + '0.vcf', "w"), open(output_prefix + f + '1.vcf', "w")]
+            ohandle_fasta = [open(output_prefix + f + '0.fasta', "w"), open(output_prefix + f + '1.fasta', "w")]
 
 class JMJProcess():
     """
