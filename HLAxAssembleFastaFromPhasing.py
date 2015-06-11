@@ -73,6 +73,121 @@ class VCF():
         self.val = vcfDict
         sys.stdout.write("done\n")
 
+class Assembler():
+    """
+    Descripe the process.
+    """
+    def __init__(self, vcf, seq):
+        for x in vcf:
+            self.vcf =x.val
+        for x in seq:
+            self.seq = x.val
+
+        self.phasing = []
+
+    def parseVCFandPhasing(self, gt_vcf_filename, phaseinfo_filename):
+        
+        filename = phaseinfo_filename
+        sys.stdout.write("Parsing '"+filename+"'...")
+        if filename[-2:] == 'gz':
+            handle = gzip.open(filename, "r")
+        else:
+            handle = open(filename, "r")
+
+        # Skip header
+        handle.next()
+
+        # Parse lines
+        i = 0
+        for line in handle:
+            try:
+                i += 1
+
+                if line == "\n":
+                    continue
+
+                l = line.strip().split(' ')
+                _, pos, ref, alt, _, c_gt, f_gt, m_gt = l
+                
+                # Typecast
+                pos = int(pos)
+
+            except ValueError:
+                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
+                sys.exit(1)            
+
+            self.phasing.append([pos, ref, alt, c_gt, f_gt, m_gt])
+        sys.stdout.write("done\n")
+        handle.close()
+
+        filename = gt_vcf_filename
+        sys.stdout.write("Parsing '"+filename+"'...")
+        if filename[-2:] == 'gz':
+            handle = gzip.open(filename, "r")
+        else:
+            handle = open(filename, "r")
+
+        # Skip header
+        handle.next()
+
+        # Get phasing generator
+        phaseinfo = iter(self.phasing)
+        p = next(phaseinfo)
+
+
+        # Parse lines and match position with phaseinfo
+        i = 0
+        ok = False
+        for line in handle:
+            try:
+                i += 1
+
+                if line == "\n" or line[0] == "#":
+                    continue
+
+                l = line.strip().split('\t')
+                chrom, pos, _, ref, alt, _, _, _, _, f, m, c = l
+                
+                # Typecast
+                pos = int(pos)
+                f_v, f_pos = f.split(':')
+                f_pos = int(f_pos)
+                m_v, m_pos = m.split(':')
+                m_pos = int(m_pos)
+                c_v, c_pos = c.split(':')
+                c_pos = int(c_pos)
+                
+            
+            except ValueError:
+                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
+                sys.exit(1)                        
+                
+            if p[0] == pos:
+                p.append((chrom, pos, ref, alt, (c_v, c_pos), (f_v, f_pos), (m_v, m_pos)))
+                try:
+                    p = next(phaseinfo)
+                except StopIteration:
+                    ok = True
+                    break
+
+            elif p[0] < pos:
+                sys.stderr.write("Error! VCF information missing for phase info position: "+ int(p[0])+"!\n")
+                sys.exit(1)
+            else:
+                # skip
+                continue
+            
+        if (not ok):
+            sys.stderr.write("Error! Missing VCF values for phase info!\n")
+            sys.exit(1)
+
+        
+        sys.stdout.write("done\n")
+        handle.close()
+
+
+    def process(self, output_prefix):
+        pass
 
 class JMJProcess():
     """
@@ -403,19 +518,15 @@ def main(args):
     for filename in [args.f_fa, args.m_fa, args.c_fa]:
         faSequence.append(Fasta(filename))
 
-    # Read GT vcf file
-    vcfGT = GT_VCF(args.c_gt_vcf)
+    # The main object for storing and assembling the haplotypes.
+    assembler = Assembler(vcfRecords, faSequence)
 
-    # The main object for storing and computing the phasing values.
-    jmj = JMJProcess(vcfRecords[2], faSequence[2])
+    # Parse GT VCF input and phasing
+    assembler.parseVCFandPhasing(args.c_gt_vcf, args.c_input)
 
-    # Preprocessing the data for father and mother
-    for filename in [args.f_input, args.m_input]:
-        jmj.preprocess(filename)
-    
-    #Processing the child
-    jmj.process(args.c_input, args.c_output, vcfRecords[0:2], faSequence[0:2])
-    
+    # Write haplotype fasta files and corrected VCF files
+    assembler.process(output_prefix=args.c_output_prefix)
+
 
 ##############################################################
 ######################### Help ###############################
