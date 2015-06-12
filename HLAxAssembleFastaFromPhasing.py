@@ -87,7 +87,9 @@ class Assembler():
         for x in seq:
             self.seq.append(x.val)
 
-        self.phasing = []
+        self.phaseinfo = []
+        self.phasing = ([], [], [])
+
 
     def parseVCFandPhasing(self, gt_vcf_filename, phaseinfo_filename):
         
@@ -120,7 +122,7 @@ class Assembler():
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
-            self.phasing.append([pos, ref, alt, c_gt, f_gt, m_gt])
+            self.phaseinfo.append([pos, ref, alt, c_gt, f_gt, m_gt])
         sys.stdout.write("done\n")
         handle.close()
 
@@ -134,10 +136,14 @@ class Assembler():
         # Skip header
         handle.next()
 
-        # Get phasing generator
-        phaseinfo = iter(self.phasing)
+        # Get phaseinfo generator
+        phaseinfo = iter(self.phaseinfo)
         p = next(phaseinfo)
 
+        # New structure
+        phasedict_c = {}
+        phasedict_f = {}
+        phasedict_m = {}
 
         # Parse lines and match position with phaseinfo
         i = 0
@@ -167,7 +173,10 @@ class Assembler():
                 sys.exit(1)                        
                 
             if p[0] == pos:
-                p.append((chrom, pos, ref, alt, (c_v, c_pos), (f_v, f_pos), (m_v, m_pos)))
+                phasedict_c[c_pos] = (p, (chrom, ref, alt, c_v))
+                phasedict_f[f_pos] = (p, (chrom, ref, alt, f_v))
+                phasedict_m[m_pos] = (p, (chrom, ref, alt, m_v))
+                                    
                 try:
                     p = next(phaseinfo)
                 except StopIteration:
@@ -185,6 +194,24 @@ class Assembler():
             sys.stderr.write("Error! Missing VCF values for phase info!\n")
             sys.exit(1)
 
+        # Sort phasedict by position and save to self.phasing
+        keys = phasedict_c.keys()
+        keys.sort()
+        for k in keys:
+            self.phasing[0].append(phasedict_c[k])
+        keys = phasedict_f.keys()
+        keys.sort()
+        for k in keys:
+            self.phasing[1].append(phasedict_f[k])
+        keys = phasedict_m.keys()
+        keys.sort()
+        for k in keys:
+            self.phasing[2].append(phasedict_m[k])
+
+            
+
+                                    
+                                 
         
         sys.stdout.write("done\n")
         handle.close()
@@ -215,6 +242,7 @@ class Assembler():
 
                     # Write variant
                     if True:
+                        
                         pass        
                     new_start = region_end
 
@@ -222,12 +250,10 @@ class Assembler():
                     for pos in xrange(region_start, region_end):
                         if self.vcf[index].has_key(pos):
                             record = self.vcf[index][pos]
-                            #record.POS = record.POS+10
+                            record.POS = record.POS + vcf_offset
                             vcf_writer.write_record(record)
-                    
-            
 
-                    # Update start
+                    # Update region start
                     region_start = new_start
 
                 ohandle_vcf.close()
