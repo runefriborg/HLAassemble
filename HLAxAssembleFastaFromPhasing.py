@@ -17,6 +17,7 @@ Based on the phasing input, output six new fasta files with corresponding VCF fi
 Author: Rune Moellegaard Friborg <runef@birc.au.dk>
 """
 
+VCF_OUTPUT_TEMPLATE=""
 
 import getopt
 import sys
@@ -78,10 +79,13 @@ class Assembler():
     Descripe the process.
     """
     def __init__(self, vcf, seq):
+        self.vcf = []
         for x in vcf:
-            self.vcf =x.val
+            self.vcf.append(x.val)
+
+        self.seq = []
         for x in seq:
-            self.seq = x.val
+            self.seq.append(x.val)
 
         self.phasing = []
 
@@ -187,11 +191,49 @@ class Assembler():
 
 
     def process(self, output_prefix):
-        
+
+        sys.stdout.write("Main processing ...")
+
+        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
+
         # Open output files
         for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
-            ohandle_vcf = [open(output_prefix + f + '0.vcf', "w"), open(output_prefix + f + '1.vcf', "w")]
-            ohandle_fasta = [open(output_prefix + f + '0.fasta', "w"), open(output_prefix + f + '1.fasta', "w")]
+            for v in [0, 1]:
+                ohandle_fasta = open(output_prefix + f + str(v)+ '.fa', "w")
+                ohandle_vcf = open(output_prefix + f + str(v) + '.vcf', "w")
+                vcf_writer = vcf.Writer(ohandle_vcf, vcf_template)
+            
+                vcf_offset = 0 # Corrected from ref variants
+                region_start = 0
+                region_end = 0
+                for entry in self.phasing:
+                    print(entry)
+                    region_end = entry[0]
+                
+                    # Write prefix to phased variant
+                    ohandle_fasta.write(str(self.seq[index][region_start:region_end]))
+
+                    # Write variant
+                    if True:
+                        pass        
+                    new_start = region_end
+
+                    # Write vcf with corrected positions
+                    for pos in xrange(region_start, region_end):
+                        if self.vcf[index].has_key(pos):
+                            record = self.vcf[index][pos]
+                            #record.POS = record.POS+10
+                            vcf_writer.write_record(record)
+                    
+            
+
+                    # Update start
+                    region_start = new_start
+
+                ohandle_vcf.close()
+                ohandle_fasta.close()
+        
+        sys.stdout.write("done\n")
 
 class JMJProcess():
     """
@@ -511,15 +553,17 @@ class JMJProcess():
 ####################### Main #################################
 
 def main(args):
+    global VCF_OUTPUT_TEMPLATE
+    VCF_OUTPUT_TEMPLATE = args.c_vcf
 
-    # Read vcf file
+    # Read vcf file (child, father, mother)
     vcfRecords = []
-    for filename in [args.f_vcf, args.m_vcf, args.c_vcf]:
+    for filename in [args.c_vcf, args.f_vcf, args.m_vcf]:
         vcfRecords.append(VCF(filename))
 
-    # Read Fasta files
+    # Read Fasta files (child, father, mother)
     faSequence = []
-    for filename in [args.f_fa, args.m_fa, args.c_fa]:
+    for filename in [args.c_fa, args.f_fa, args.m_fa]:
         faSequence.append(Fasta(filename))
 
     # The main object for storing and assembling the haplotypes.
