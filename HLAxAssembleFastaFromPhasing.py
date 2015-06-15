@@ -225,9 +225,10 @@ class Assembler():
 
                 print(len(self.seq[index]), len(self.phasing[index]))
             
-                vcf_offset = 0 # Corrected from ref variants
+                vcf_offset = 0
                 region_start = 0
-                region_end = 0                
+                region_end = 0        
+        
                 for entry in self.phasing[index]:
                     # Entry format:
                     #    1716,
@@ -236,6 +237,9 @@ class Assembler():
                     # )                    
 
                     region_end = entry[0]
+
+                    #if region_end > 10000:
+                    #    break
                     
                     # Write prefix to phased variant
                     ohandle_fasta.write(str(self.seq[index][region_start:region_end]))
@@ -270,6 +274,7 @@ class Assembler():
                             record = self.vcf[index][pos]
                             record.POS = record.POS + vcf_offset
                             vcf_writer.write_record(record)
+                            record.POS = record.POS - vcf_offset
 
                     # Update region start
                     region_start = new_start
