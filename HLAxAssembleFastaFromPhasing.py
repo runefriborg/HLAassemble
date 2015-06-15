@@ -167,9 +167,9 @@ class Assembler():
                 sys.exit(1)                        
                 
             if p[0] == pos:
-                phasedict_c[c_pos] = (p, (chrom, ref, alt, c_v))
-                phasedict_f[f_pos] = (p, (chrom, ref, alt, f_v))
-                phasedict_m[m_pos] = (p, (chrom, ref, alt, m_v))
+                phasedict_c[c_pos] = (c_pos, p, (chrom, ref, alt, c_v))
+                phasedict_f[f_pos] = (f_pos, p, (chrom, ref, alt, f_v))
+                phasedict_m[m_pos] = (m_pos, p, (chrom, ref, alt, m_v))
                                     
                 try:
                     p = next(phaseinfo)
@@ -178,7 +178,7 @@ class Assembler():
                     break
 
             elif p[0] < pos:
-                sys.stderr.write("Error! VCF information missing for phase info position: "+ int(p[0])+"!\n")
+                sys.stderr.write("Error! VCF information missing for phase info position: "+ str(p[0])+"!\n")
                 sys.exit(1)
             else:
                 # skip
@@ -193,10 +193,12 @@ class Assembler():
         keys.sort()
         for k in keys:
             self.phasing[0].append(phasedict_c[k])
+
         keys = phasedict_f.keys()
         keys.sort()
         for k in keys:
             self.phasing[1].append(phasedict_f[k])
+
         keys = phasedict_m.keys()
         keys.sort()
         for k in keys:
@@ -218,25 +220,52 @@ class Assembler():
                 ohandle_fasta = open(output_prefix + f + str(v)+ '.fa', "w")
                 ohandle_vcf = open(output_prefix + f + str(v) + '.vcf', "w")
                 vcf_writer = vcf.Writer(ohandle_vcf, vcf_template)
+
+                ohandle_fasta.write(">"+self.phasing[index][0][2][0]+f+str(v)+"\n")
+
+                print(len(self.seq[index]), len(self.phasing[index]))
             
                 vcf_offset = 0 # Corrected from ref variants
                 region_start = 0
-                region_end = 0
+                region_end = 0                
                 for entry in self.phasing[index]:
-                    print(entry)
-                    region_end = entry[0][0]
-                
+                    # Entry format:
+                    #    1716,
+                    # (  [1716, 'AAAAAAA', 'AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA'],
+                    #    ,('1089', 'AAAAAAA', 'AAAAAA', '0/1')
+                    # )                    
+
+                    region_end = entry[0]
+                    
                     # Write prefix to phased variant
                     ohandle_fasta.write(str(self.seq[index][region_start:region_end]))
 
-                    # Write variant
-                    if True:
+                    # Get phase value
+                    phase_val = entry[1][3+index]
+
+                    # Check for phasing
+                    if ('|' in phase_val):
+
+                        # Find reference length to replace
+                        ref_index, _ = entry[2][3].split('/')
+                        ref = entry[2][1+int(ref_index)]
+                        replace_len = len(ref)
                         
-                        pass        
-                    new_start = region_end
+                        # Write variant
+                        val = phase_val.split('|')[v]
+                        ohandle_fasta.write(val)
+
+                        new_start = region_end + replace_len
+                        vcf_offset = vcf_offset + len(val) - replace_len
+
+                    else:
+                        # No phasing!
+                        # Keep fasta content and no change to vcf offset
+                        new_start = region_end
+                        
 
                     # Write vcf with corrected positions
-                    for pos in xrange(region_start, region_end):
+                    for pos in xrange(region_start, new_start):
                         if self.vcf[index].has_key(pos):
                             record = self.vcf[index][pos]
                             record.POS = record.POS + vcf_offset
@@ -244,10 +273,21 @@ class Assembler():
 
                     # Update region start
                     region_start = new_start
-                    
-                    sys.exit(0)
+
+                # Add suffix to last phased variant
+                s = str(self.seq[index][region_start:])
+                ohandle_fasta.write(s)
+
+                # Update vcf for last entries
+                for pos in xrange(region_start, region_start+len(s)):
+                        if self.vcf[index].has_key(pos):
+                            record = self.vcf[index][pos]
+                            record.POS = record.POS + vcf_offset
+                            vcf_writer.write_record(record)
+                print("END:" + str(region_start) + ", " + str(len(s)))
 
                 ohandle_vcf.close()
+                ohandle_fasta.write("\n")
                 ohandle_fasta.close()
         
         sys.stdout.write("done\n")
