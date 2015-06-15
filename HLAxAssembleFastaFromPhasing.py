@@ -28,8 +28,8 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.01"
-UPDATED="2015-06-10"
+VERSION="0.02"
+UPDATED="2015-06-15"
 
 ##############################################################
 ####################### Classes #################################
@@ -100,9 +100,6 @@ class Assembler():
         else:
             handle = open(filename, "r")
 
-        # Skip header
-        handle.next()
-
         # Parse lines
         i = 0
         for line in handle:
@@ -133,13 +130,10 @@ class Assembler():
         else:
             handle = open(filename, "r")
 
-        # Skip header
-        handle.next()
-
         # Get phaseinfo generator
         phaseinfo = iter(self.phaseinfo)
         p = next(phaseinfo)
-
+        
         # New structure
         phasedict_c = {}
         phasedict_f = {}
@@ -207,12 +201,7 @@ class Assembler():
         keys.sort()
         for k in keys:
             self.phasing[2].append(phasedict_m[k])
-
-            
-
-                                    
-                                 
-        
+                   
         sys.stdout.write("done\n")
         handle.close()
 
@@ -233,9 +222,9 @@ class Assembler():
                 vcf_offset = 0 # Corrected from ref variants
                 region_start = 0
                 region_end = 0
-                for entry in self.phasing:
+                for entry in self.phasing[index]:
                     print(entry)
-                    region_end = entry[0]
+                    region_end = entry[0][0]
                 
                     # Write prefix to phased variant
                     ohandle_fasta.write(str(self.seq[index][region_start:region_end]))
@@ -255,323 +244,13 @@ class Assembler():
 
                     # Update region start
                     region_start = new_start
+                    
+                    sys.exit(0)
 
                 ohandle_vcf.close()
                 ohandle_fasta.close()
         
         sys.stdout.write("done\n")
-
-class JMJProcess():
-    """
-    Descripe the process.
-    """
-    def __init__(self, vcf, seq):
-        self.child_vcf = vcf.val
-        self.child_seq = seq.val
-        self.custom_variants = []
-
-    def preprocess(self, filename):
-        """
-        For every variant in the mother and father identify the variants in the child
-        
-        Use this method for the father and mother
-        """
-        new_variants= {}
-
-        sys.stdout.write("Preprocessing '"+filename+"'...")
-        if filename[-2:] == 'gz':
-            handle = gzip.open(filename, "r")
-        else:
-            handle = open(filename, "r")
-
-        # Skip header
-        handle.next()
-
-        # Parse lines
-        i = 0
-        for line in handle:
-            try:
-                i += 1
-
-                if line == "\n":
-                    continue
-
-                l = line.strip().split('\t')
-                pos, ref, alt, length, f_pos, m_pos, c_pos = l
-            except ValueError:
-                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
-                sys.exit(1)            
-
-            # Skip if NA
-            if (c_pos == 'NA'):
-                continue
-
-            # Type cast to int
-            pos = int(pos)    
-            c_pos = int(c_pos)
-
-            # Extract variants
-            v = [ref, alt]
-
-            if self.child_vcf.has_key(c_pos):
-                # Child has a variant on the same position in it's VCF                
-                child_record = self.child_vcf[c_pos]
-
-                cv = [child_record.REF]
-                cv.extend([x.sequence for x in child_record.ALT])
-
-                if new_variants.has_key(c_pos):
-                    # Variant conflict, Ignore variant!
-                    new_variants[c_pos] = None
-                else:
-                    new_variants[c_pos] = ((f_pos, m_pos), cv)
-            else:
-                # Search fasta
-
-                # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
-                # fasta_c_pos = c_pos-1
-                fasta_c_pos = c_pos
-
-                # Get variants
-                cv = []
-                for item in v:
-                    cv.append(str(self.child_seq[fasta_c_pos:(fasta_c_pos+len(item))]))
-
-                if new_variants.has_key(c_pos):
-                    # Variant conflict, Ignore variant!
-                    new_variants[c_pos] = None
-                else:
-                    new_variants[c_pos] = ((f_pos, m_pos), cv)
-        
-        # Add newly found custom variants
-        self.custom_variants.append(new_variants)
-        
-        sys.stdout.write("done\n")
-        handle.close()
-        
-    def process(self, filename, ofilename, parent_vcf_obj, parent_seq_obj):
-
-        parent_vcf = [x.val for x in parent_vcf_obj]
-        parent_seq = [x.val for x in parent_seq_obj]
-
-        sys.stdout.write("Processing '"+filename+"'...")
-        if filename[-2:] == 'gz':
-            handle = gzip.open(filename, "r")
-        else:
-            handle = open(filename, "r")
-
-        # Open output file
-        if ofilename[-2:] == 'gz':
-            ohandle = gzip.open(ofilename, "w")
-            ohandle_skipped = gzip.open(ofilename + ".skipped", "w")
-        else:
-            ohandle = open(ofilename, "w")
-            ohandle_skipped = open(ofilename + ".skipped", "w")
-
-
-        # Skip header
-        handle.next()
-
-        
-        # Parse lines
-        i = 0
-        data = {}
-        for line in handle:
-            try:
-                i += 1
-
-                if line == "\n":
-                    continue
-
-                l = line.strip().split('\t')
-                pos, ref, alt, length, f_pos, m_pos, c_pos = l
-                
-                data[int(pos)] = (ref, alt, length, f_pos, m_pos)
-            except ValueError:
-                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
-                sys.exit(1) 
-
-        # Find max position
-        max_pos = 0
-        for seq in parent_seq + [self.child_seq]:
-            if len(seq) > max_pos:
-                max_pos = len(seq)
-
-        # Get Chromoson id
-        PRE_CHROM = self.child_vcf.values()[0].CHROM[:4] 
-        CHILD_CHROM = self.child_vcf.values()[0].CHROM
-
-        # Write header
-        ohandle.write('##fileformat=VCFv4.1\n')
-        ohandle.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
-        ohandle.write('##FORMAT=<ID=PS,Number=1,Type=Integer,Description="Position">\n')
-        #ohandle.write('##INFO=<ID=VT,Number=1,Type=String,Description="indicates what type of variant the line represents">')
-        ohandle.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{0}-01\t{0}-02\t{1}\n".format(PRE_CHROM, CHILD_CHROM))
-
-        
-        # Do a full sweep of all positions and construct the resulting record
-        for i in xrange(0, max_pos):
-            
-            CHILD_POS = None
-            CHILD_REF = None
-            CHILD_ALT = None
-            PARENT_POS = [None, None]
-            PARENT_REF = [None, None]
-            PARENT_ALT = [None, None]
-                        
-            if data.has_key(i):
-                ref, alt, length, f_pos, m_pos = data[i]
-
-                CHILD_POS = i
-                CHILD_REF = ref
-                CHILD_ALT = alt
-                PARENT_POS[0] = f_pos
-                PARENT_POS[1] = m_pos
-
-                #sys.stdout.write("X:"+str(CHILD_POS)+":"+ref+","+alt+":f_pos="+f_pos+",m_pos="+m_pos+"\n")
-
-                for j,p,v,s in zip([0,1], PARENT_POS, parent_vcf, parent_seq):
-                    
-                    if p == 'NA':
-                        continue
-
-                    if v.has_key(int(p)):
-                        parent_record = v[int(p)]
-                        
-                        PARENT_REF[j] = parent_record.REF
-                        PARENT_ALT[j] = parent_record.ALT[0].sequence
-
-                        if len(parent_record.ALT) != 1:
-                            sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
-                            sys.exit(1)
-
-                        #sys.stdout.write("  parent_vcf:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
-
-                    else:
-                        # entry not found in VCF
-
-                        # Search fasta
-
-                        # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
-                        # fasta_c_pos = c_pos-1
-                        fasta_p = int(p)
-
-                        PARENT_REF[j] = str(s[fasta_p:(fasta_p+len(CHILD_REF))])
-                        PARENT_ALT[j] = str(s[fasta_p:(fasta_p+len(CHILD_ALT))])
-
-                        #sys.stdout.write("  parent_fasta:"+str(j)+":"+str([PARENT_REF[j], PARENT_ALT[j]])+"\n")
-
-            p = 0
-            for D in self.custom_variants:
-                if D.has_key(i) and D[i] != None:
-                    #sys.stdout.write("Y:"+str(i)+":p="+str(p)+":"+str(D[i])+"\n")
-
-                    CHILD_POS = i
-
-                    # Always select the shortest variant from two variant from same position found in both parents
-                    if CHILD_REF == None or len(D[i][1][0]) < len(CHILD_REF):
-                        CHILD_REF = D[i][1][0]                        
-                    if CHILD_ALT == None or len(D[i][1][1]) < len(CHILD_ALT):
-                        CHILD_ALT = D[i][1][1]
-
-                    # Fetch variants from both parents
-                    for sub_p in range(2):
-                        p_pos = D[i][0][sub_p]
-                        
-                        # Skip if NA
-                        if p_pos == 'NA':
-                            continue
-
-                        # Typecast to int
-                        p_pos = int(p_pos)
-
-                        # Fetch from VCF
-                        if parent_vcf[sub_p].has_key(p_pos):
-                            parent_record = parent_vcf[sub_p][p_pos]
-
-                            PARENT_POS[sub_p] = p_pos
-                            PARENT_REF[sub_p] = parent_record.REF
-                            PARENT_ALT[sub_p] = parent_record.ALT[0].sequence
-
-                            if len(parent_record.ALT) != 1:
-                                sys.stderr.write("Error! Parent VCF record with multiple ALT variants is not allowed!\n")
-                                sys.exit(1)
-
-                            #sys.stdout.write("  parent_vcf:"+str(sub_p)+":"+str([PARENT_REF[sub_p], PARENT_ALT[sub_p]])+"\n")
-                        elif p != sub_p:
-
-                            # entry not found in VCF
-                            # Search fasta
-
-                            # Skip searching fasta if already set
-                            if PARENT_POS[sub_p] != None:
-                                continue
-
-                            s = parent_seq[sub_p]
-
-                            # Correct for one-indexing TODO!!! WARNING. Must be changed when vcf files have been corrected
-                            # fasta_c_pos = c_pos-1
-                            fasta_pos = int(p_pos) 
-
-                            PARENT_POS[sub_p] = p_pos
-                            PARENT_REF[sub_p] = str(s[fasta_pos:(fasta_pos+len(CHILD_REF))])
-                            PARENT_ALT[sub_p] = str(s[fasta_pos:(fasta_pos+len(CHILD_ALT))])
-
-                            #sys.stdout.write("  parent_fasta:"+str(sub_p)+":"+str([PARENT_REF[sub_p], PARENT_ALT[sub_p]])+"\n")
-
-                        else:
-                            # If value was not found in VCF, then p_pos is marked invalid and can be skipped
-                            # The reason being that the indexes are generated from the VCF file.
-                            pass
-                        
-                p += 1
-
-            if CHILD_POS != None:
-
-                # CHILD_POS, CHILD_REF, CHILD_ALT
-                # PARENT_POS[0,1], PARENT_REF[0,1], PARENT_ALT[0,1]
-                
-                # Construct variant list
-                V = [CHILD_REF, CHILD_ALT]
-                for p in range(2):
-                    if PARENT_REF[p] and PARENT_ALT[p]:                        
-                        V.append(PARENT_REF[p])
-                        V.append(PARENT_ALT[p])
-                
-                def uniq(input):
-                    output = []
-                    for x in input:
-                        if x not in output:
-                            output.append(x)
-                    return output
-
-                # Make variant list into a unique list
-                V = uniq(V)
-
-                # Skip entry if the variant list has more or less than two variants.
-                if (len(V) == 2):
-                    h = ohandle
-                else:
-                    h = ohandle_skipped
-
-                h.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS".format(PRE_CHROM, CHILD_POS, V[0], ",".join(V[1:])))
-                
-                # Output genotype for father and mother
-                for p in range(2):
-                    if PARENT_REF[p] and PARENT_ALT[p]: 
-                        h.write("\t{0}/{1}:{2}".format(V.index(PARENT_REF[p]), V.index(PARENT_ALT[p]), PARENT_POS[p]))
-                    else:
-                        h.write("\t./.:0")
-
-                # Output genotype for child
-                h.write("\t{0}/{1}:{2}\n".format(V.index(CHILD_REF), V.index(CHILD_ALT), CHILD_POS))
-
-
-        sys.stdout.write("done\n")
-        ohandle.close()
-        ohandle_skipped.close()
-        handle.close()
-    
 
         
         
