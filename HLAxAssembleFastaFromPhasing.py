@@ -216,6 +216,7 @@ class Assembler():
 
         # Open output files
         for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
+            seq_len = len(self.seq[index])
             for v in [0, 1]:
                 ohandle_fasta = open(output_prefix + f + str(v)+ '.fa', "w")
                 ohandle_vcf = open(output_prefix + f + str(v) + '.vcf', "w")
@@ -237,6 +238,12 @@ class Assembler():
                     # )                    
 
                     region_end = entry[0]
+
+                    if region_end > seq_len:
+                        # variant is after fasta entry, skipping entry!
+                        sys.stderr.write("\nWARNING: Ran out of fasta data before finishing all phased entries:\n"+str(entry))
+                        sys.stderr.write("\n\n")
+                        break
 
                     # Write prefix to phased variant
                     ohandle_fasta.write(self.seq[index][region_start:region_end])
@@ -279,6 +286,7 @@ class Assembler():
                 # Add suffix to last phased variant
                 s = self.seq[index][region_start:]
                 ohandle_fasta.write(s)
+
 
                 # Update vcf for last entries
                 for pos in xrange(region_start, region_start+len(s)):
