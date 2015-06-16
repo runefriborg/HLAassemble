@@ -28,8 +28,8 @@ import vcf
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.02"
-UPDATED="2015-06-15"
+VERSION="0.03"
+UPDATED="2015-06-16"
 
 ##############################################################
 ####################### Classes #################################
@@ -85,7 +85,7 @@ class Assembler():
 
         self.seq = []
         for x in seq:
-            self.seq.append(x.val)
+            self.seq.append(str(x.val))
 
         self.phaseinfo = []
         self.phasing = ([], [], [])
@@ -210,7 +210,7 @@ class Assembler():
 
     def process(self, output_prefix):
 
-        sys.stdout.write("Main processing ...")
+        sys.stdout.write("Main processing:\n")
 
         vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
@@ -221,10 +221,10 @@ class Assembler():
                 ohandle_vcf = open(output_prefix + f + str(v) + '.vcf', "w")
                 vcf_writer = vcf.Writer(ohandle_vcf, vcf_template)
 
+                sys.stdout.write("\tWriting " + output_prefix + f + str(v) + ".[fa|vcf]...")
+
                 ohandle_fasta.write(">"+self.phasing[index][0][2][0]+f+str(v)+"\n")
 
-                print(len(self.seq[index]), len(self.phasing[index]))
-            
                 vcf_offset = 0
                 region_start = 0
                 region_end = 0        
@@ -238,11 +238,8 @@ class Assembler():
 
                     region_end = entry[0]
 
-                    #if region_end > 10000:
-                    #    break
-                    
                     # Write prefix to phased variant
-                    ohandle_fasta.write(str(self.seq[index][region_start:region_end]))
+                    ohandle_fasta.write(self.seq[index][region_start:region_end])
 
                     # Get phase value
                     phase_val = entry[1][3+index]
@@ -280,7 +277,7 @@ class Assembler():
                     region_start = new_start
 
                 # Add suffix to last phased variant
-                s = str(self.seq[index][region_start:])
+                s = self.seq[index][region_start:]
                 ohandle_fasta.write(s)
 
                 # Update vcf for last entries
@@ -289,15 +286,14 @@ class Assembler():
                             record = self.vcf[index][pos]
                             record.POS = record.POS + vcf_offset
                             vcf_writer.write_record(record)
-                print("END:" + str(region_start) + ", " + str(len(s)))
+                            record.POS = record.POS - vcf_offset
 
                 ohandle_vcf.close()
                 ohandle_fasta.write("\n")
                 ohandle_fasta.close()
         
-        sys.stdout.write("done\n")
-
-        
+                sys.stdout.write("done\n")
+        sys.stdout.write("Main processing completed.\n")        
         
 ##############################################################
 ####################### Main #################################

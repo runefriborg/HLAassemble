@@ -24,11 +24,27 @@ import gzip
 from Bio import SeqIO
 import vcf
 
+STATS = {
+    'OUTPUT_VARIANTS_TOTAL_USED':0,
+    'OUTPUT_VARIANTS_MULTIALLELIC_SKIPPED':0,
+    'OUTPUT_VARIANTS_NEGATIVE_SKIPPED':0,
+    'OUTPUT_VARIANTS_CHILD_NA_SKIPPED':0
+}
+
+def print_stats():
+    global STATS
+    keys = STATS.keys()
+    keys.sort()
+    for k in keys:
+        print('{:<40}:{:>10}'.format(k, STATS[k]))
+
+
+
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.04"
-UPDATED="2015-06-10"
+VERSION="0.05"
+UPDATED="2015-06-16"
 
 ##############################################################
 ####################### Classes #################################
@@ -117,11 +133,16 @@ class JMJProcess():
 
             # Skip if NA
             if (c_pos == 'NA'):
+                STATS['OUTPUT_VARIANTS_CHILD_NA_SKIPPED'] += 1
                 continue
 
             # Type cast to int
             pos = int(pos)    
             c_pos = int(c_pos)
+
+            if (pos < 0 or c_pos < 0):
+                STATS['OUTPUT_VARIANTS_NEGATIVE_SKIPPED'] += 1
+                continue
 
             # Extract variants
             v = [ref, alt]
@@ -343,6 +364,12 @@ class JMJProcess():
 
                 # CHILD_POS, CHILD_REF, CHILD_ALT
                 # PARENT_POS[0,1], PARENT_REF[0,1], PARENT_ALT[0,1]
+
+                if ((CHILD_POS != None and CHILD_POS < 0) or
+                    (PARENT_POS[0] != None and PARENT_POS[0] < 0) or
+                    (PARENT_POS[1] != None and PARENT_POS[1] < 0)):
+                    STATS['OUTPUT_VARIANTS_NEGATIVE_SKIPPED'] += 1
+                    continue
                 
                 # Construct variant list
                 V = [CHILD_REF, CHILD_ALT]
@@ -364,8 +391,10 @@ class JMJProcess():
                 # Skip entry if the variant list has more or less than two variants.
                 if (len(V) == 2):
                     h = ohandle
+                    STATS['OUTPUT_VARIANTS_TOTAL_USED']+= 1
                 else:
                     h = ohandle_skipped
+                    STATS['OUTPUT_VARIANTS_MULTIALLELIC_SKIPPED']+= 1
 
                 h.write("{0}\t{1}\tvariant_{1}\t{2}\t{3}\t255\tPASS\t\tGT:PS".format(PRE_CHROM, CHILD_POS, V[0], ",".join(V[1:])))
                 
@@ -412,6 +441,9 @@ def main(args):
     
     #Processing the child
     jmj.process(args.c_input, args.c_output, vcfRecords[0:2], faSequence[0:2])
+
+
+    print_stats()
     
 
 
