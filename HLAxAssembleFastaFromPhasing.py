@@ -24,12 +24,13 @@ import sys
 import gzip
 from Bio import SeqIO
 import vcf
+import itertools
 
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.03"
-UPDATED="2015-06-16"
+VERSION="0.04"
+UPDATED="2015-06-17"
 
 ##############################################################
 ####################### Classes #################################
@@ -167,9 +168,23 @@ class Assembler():
                 sys.exit(1)                        
                 
             if p[0] == pos:
-                phasedict_c[c_pos] = (c_pos, p, (chrom, ref, alt, c_v))
-                phasedict_f[f_pos] = (f_pos, p, (chrom, ref, alt, f_v))
-                phasedict_m[m_pos] = (m_pos, p, (chrom, ref, alt, m_v))
+                if phasedict_c.has_key(c_pos) or phasedict_f.has_key(f_pos) or phasedict_m.has_key(m_pos):
+                    if phasedict_c.has_key(c_pos):
+                        sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
+                        sys.stderr.write("Child: "+ str(phasedict_c[c_pos]) + "\n")
+                    if phasedict_f.has_key(f_pos):
+                        sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
+                        sys.stderr.write("Father: "+ str(phasedict_f[f_pos]) + "\n")
+                    if phasedict_m.has_key(m_pos):
+                        sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
+                        sys.stderr.write("Mother: "+ str(phasedict_m[m_pos]) + "\n")
+                    phasedict_c[c_pos] = None
+                    phasedict_f[f_pos] = None
+                    phasedict_m[m_pos] = None
+                else:
+                    phasedict_c[c_pos] = (c_pos, p, (chrom, ref, alt, c_v))
+                    phasedict_f[f_pos] = (f_pos, p, (chrom, ref, alt, f_v))
+                    phasedict_m[m_pos] = (m_pos, p, (chrom, ref, alt, m_v))
                                     
                 try:
                     p = next(phaseinfo)
@@ -187,6 +202,7 @@ class Assembler():
         if (not ok):
             sys.stderr.write("Error! Missing VCF values for phase info!\n")
             sys.exit(1)
+
 
         # Sort phasedict by position and save to self.phasing
         keys = phasedict_c.keys()
@@ -214,6 +230,8 @@ class Assembler():
 
         vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
+        phase_out_list = ([],[],[])
+
         # Open output files
         for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
             seq_len = len(self.seq[index])
@@ -236,6 +254,9 @@ class Assembler():
                     # (  [1716, 'AAAAAAA', 'AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA'],
                     #    ,('1089', 'AAAAAAA', 'AAAAAA', '0/1')
                     # )                    
+
+                    if entry == None:
+                        continue
 
                     region_end = entry[0]
 
@@ -265,11 +286,14 @@ class Assembler():
 
                         new_start = region_end + replace_len
                         vcf_offset = vcf_offset + len(val) - replace_len
+                        
+                        # Add content to phase_out
+                        phase_out_list[index].append(entry[0])
 
                     else:
                         # No phasing!
                         # Keep fasta content and no change to vcf offset
-                        new_start = region_end
+                        new_start = region_end                    
                         
 
                     # Write vcf with corrected positions
@@ -301,6 +325,16 @@ class Assembler():
                 ohandle_fasta.close()
         
                 sys.stdout.write("done\n")
+        
+        # Write phase out list
+        phase_out_handle = open(output_prefix + ".phase.pos", "w")
+        phase_out_handle.write("#CHILD\tFATHER\tMOTHER\n")
+
+
+        for c,f,m in itertools.izip_longest(*phase_out_list):
+            phase_out_handle.write("{}\t{}\t{}\n".format(c,f,m))
+        
+        phase_out_handle.close()
         sys.stdout.write("Main processing completed.\n")        
         
 ##############################################################
