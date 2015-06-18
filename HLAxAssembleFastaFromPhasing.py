@@ -120,7 +120,7 @@ class Assembler():
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
                 sys.exit(1)            
 
-            self.phaseinfo.append([pos, ref, alt, c_gt, f_gt, m_gt])
+            self.phaseinfo.append((pos, ref, alt, c_gt, f_gt, m_gt))
         sys.stdout.write("done\n")
         handle.close()
 
@@ -140,7 +140,7 @@ class Assembler():
         phasedict_f = {}
         phasedict_m = {}
 
-        duplicates = []
+        duplicates = {}
 
         # Parse lines and match position with phaseinfo
         i = 0
@@ -175,14 +175,19 @@ class Assembler():
                     if phasedict_c.has_key(c_pos):
                         sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
                         sys.stderr.write("Child: "+ str(phasedict_c[c_pos]) + "\n")
+                        duplicates[phasedict_c[c_pos]] = 1
+
                     if phasedict_f.has_key(f_pos):
                         sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
                         sys.stderr.write("Father: "+ str(phasedict_f[f_pos]) + "\n")
+                        duplicates[phasedict_f[f_pos]] = 1
+
                     if phasedict_m.has_key(m_pos):
                         sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
                         sys.stderr.write("Mother: "+ str(phasedict_m[m_pos]) + "\n")
+                        duplicates[phasedict_m[m_pos]] = 1
                     
-                    duplicates.append(new_entry)
+                    duplicates[new_entry] = 1
                 else:
                     phasedict_c[c_pos] = new_entry
                     phasedict_f[f_pos] = new_entry
@@ -205,33 +210,15 @@ class Assembler():
             sys.exit(1)
 
         # Sort phasedict by position and save to self.phasing
-        keys = phasedict_c.keys()
-        keys.sort()
-        for k in keys:
-            if phasedict_c[k] != None:
-                self.phasing[0].append(phasedict_c[k])
-
-        keys = phasedict_f.keys()
-        keys.sort()
-        for k in keys:
-            if phasedict_f[k] != None:
-                self.phasing[1].append(phasedict_f[k])
-
-        keys = phasedict_m.keys()
-        keys.sort()
-        for k in keys:
-            if phasedict_m[k] != None:
-                self.phasing[2].append(phasedict_m[k])
-
-        # Remove duplicates
-        new_phasing_list = []
-        for L in self.phasing:
-            newL = []
-            for x in L:
-                if not x in duplicates:
-                    newL.append(x)
-            new_phasing_list.append(newL)
-        self.phasing = new_phasing_list
+        i = 0
+        for D in [phasedict_c, phasedict_f, phasedict_m]:            
+            keys = D.keys()
+            keys.sort()
+            for k in keys:
+                # check duplicate
+                if not duplicates.has_key(D[k]):
+                    self.phasing[i].append(D[k])
+            i += 1
                                 
         sys.stdout.write("done\n")
         handle.close()
