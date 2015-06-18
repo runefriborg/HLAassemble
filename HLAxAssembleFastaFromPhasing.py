@@ -140,6 +140,8 @@ class Assembler():
         phasedict_f = {}
         phasedict_m = {}
 
+        duplicates = []
+
         # Parse lines and match position with phaseinfo
         i = 0
         ok = False
@@ -168,6 +170,7 @@ class Assembler():
                 sys.exit(1)                        
                 
             if p[0] == pos:
+                new_entry = (p, (chrom, ref, alt), (c_pos, f_pos, m_pos), (c_v, f_v, m_v))
                 if phasedict_c.has_key(c_pos) or phasedict_f.has_key(f_pos) or phasedict_m.has_key(m_pos):
                     if phasedict_c.has_key(c_pos):
                         sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
@@ -178,14 +181,12 @@ class Assembler():
                     if phasedict_m.has_key(m_pos):
                         sys.stderr.write("WARNING! Removing multiple phasing to same position:\n")                
                         sys.stderr.write("Mother: "+ str(phasedict_m[m_pos]) + "\n")
-                    phasedict_c[c_pos] = None
-                    phasedict_f[f_pos] = None
-                    phasedict_m[m_pos] = None
+                    
+                    duplicates.append(new_entry)
                 else:
-                    phasedict_c[c_pos] = (c_pos, p, (chrom, ref, alt, c_v))
-                    phasedict_f[f_pos] = (f_pos, p, (chrom, ref, alt, f_v))
-                    phasedict_m[m_pos] = (m_pos, p, (chrom, ref, alt, m_v))
-                                    
+                    phasedict_c[c_pos] = new_entry
+                    phasedict_f[f_pos] = new_entry
+                    phasedict_m[m_pos] = new_entry
                 try:
                     p = next(phaseinfo)
                 except StopIteration:
@@ -203,26 +204,37 @@ class Assembler():
             sys.stderr.write("Error! Missing VCF values for phase info!\n")
             sys.exit(1)
 
-
         # Sort phasedict by position and save to self.phasing
         keys = phasedict_c.keys()
         keys.sort()
         for k in keys:
-            self.phasing[0].append(phasedict_c[k])
+            if phasedict_c[k] != None:
+                self.phasing[0].append(phasedict_c[k])
 
         keys = phasedict_f.keys()
         keys.sort()
         for k in keys:
-            self.phasing[1].append(phasedict_f[k])
+            if phasedict_f[k] != None:
+                self.phasing[1].append(phasedict_f[k])
 
         keys = phasedict_m.keys()
         keys.sort()
         for k in keys:
-            self.phasing[2].append(phasedict_m[k])
-                   
+            if phasedict_m[k] != None:
+                self.phasing[2].append(phasedict_m[k])
+
+        # Remove duplicates
+        new_phasing_list = []
+        for L in self.phasing:
+            newL = []
+            for x in L:
+                if not x in duplicates:
+                    newL.append(x)
+            new_phasing_list.append(newL)
+        self.phasing = new_phasing_list
+                                
         sys.stdout.write("done\n")
         handle.close()
-
 
     def process(self, output_prefix):
 
@@ -242,7 +254,7 @@ class Assembler():
 
                 sys.stdout.write("\tWriting " + output_prefix + f + str(v) + ".[fa|vcf]...")
 
-                ohandle_fasta.write(">"+self.phasing[index][0][2][0]+f+str(v)+"\n")
+                ohandle_fasta.write(">"+self.phasing[index][0][1][0]+f+str(v)+"\n")
 
                 vcf_offset = 0
                 region_start = 0
@@ -250,15 +262,13 @@ class Assembler():
         
                 for entry in self.phasing[index]:
                     # Entry format:
-                    #    1716,
-                    # (  [1716, 'AAAAAAA', 'AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA'],
-                    #    ,('1089', 'AAAAAAA', 'AAAAAA', '0/1')
+                    # (    [1716, 'AAAAAAA', 'AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA', 'AAAAAAA/AAAAAA'],
+                    #      ('1089', 'AAAAAAA', 'AAAAAA'),
+                    #      (1716, 5181, 1541),
+                    #      ('0/1', '0/1', '0/1')
                     # )                    
-
-                    if entry == None:
-                        continue
-
-                    region_end = entry[0]
+                    
+                    region_end = entry[2][index]
 
                     if region_end > seq_len:
                         # variant is after fasta entry, skipping entry!
@@ -270,14 +280,14 @@ class Assembler():
                     ohandle_fasta.write(self.seq[index][region_start:region_end])
 
                     # Get phase value
-                    phase_val = entry[1][3+index]
+                    phase_val = entry[0][3+index]
 
                     # Check for phasing
                     if ('|' in phase_val):
 
                         # Find reference length to replace
-                        ref_index, _ = entry[2][3].split('/')
-                        ref = entry[2][1+int(ref_index)]
+                        ref_index, _ = entry[3][index].split('/')
+                        ref = entry[1][1+int(ref_index)]
                         replace_len = len(ref)
                         
                         # Write variant
@@ -288,7 +298,7 @@ class Assembler():
                         vcf_offset = vcf_offset + len(val) - replace_len
                         
                         # Add content to phase_out
-                        phase_out_list[index].append(entry[0])
+                        phase_out_list[index].append(region_end)
 
                     else:
                         # No phasing!
@@ -330,6 +340,7 @@ class Assembler():
         phase_out_handle = open(output_prefix + ".phase.pos", "w")
         phase_out_handle.write("#CHILD\tFATHER\tMOTHER\n")
 
+        print([len(x) for x in phase_out_list])
 
         for c,f,m in itertools.izip_longest(*phase_out_list):
             phase_out_handle.write("{}\t{}\t{}\n".format(c,f,m))
