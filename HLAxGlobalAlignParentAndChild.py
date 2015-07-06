@@ -82,7 +82,7 @@ class PhasedPositions():
 
     And provide filtering methods
     """
-    def __init__(self, filename):
+    def __init__(self, filename, parent):
 
         self.content = []
         
@@ -109,10 +109,15 @@ class PhasedPositions():
                 
                 # Typecast
                 c_pos = int(c_pos)
-                f_pos = int(f_pos)
-                m_pos = int(m_pos)
 
-                self.content.append((c_pos, f_pos, m_pos))
+                if parent == 'f':
+                    if f_pos != 'None':
+                        f_pos = int(f_pos)
+                        self.content.append((c_pos, f_pos))
+                else:
+                    if m_pos != 'None':
+                        m_pos = int(m_pos)
+                        self.content.append((c_pos, m_pos))
                 
             except ValueError:
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
@@ -120,6 +125,17 @@ class PhasedPositions():
 
         sys.stdout.write("done\n")
         handle.close()
+    
+    def clean(self):
+        """
+        Removes crossed phased positions 
+        """
+        
+        #L = []
+        
+        
+        #for c_pos, m_pos, f_pos in self.content:
+        pass
 
         
 ##############################################################
@@ -131,6 +147,8 @@ def main(args):
     faSequence = []
     for filename in [args.c_fa, args.parent_fa]:
         faSequence.append(Fasta(filename))
+
+    phasePos = PhasedPositions(args.phase_pos, args.parent)
 
 ##############################################################
 ######################### Help ###############################
