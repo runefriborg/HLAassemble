@@ -1,0 +1,1 @@
+./HLAxGlobalAlignParentAndChild.py --parent-vcf=1089.haplotypes.m1.vcf --parent-fa=1089.haplotypes.m1.fa --c-vcf=1089.haplotypes.c0.vcf --c-fa=1089.haplotypes.c0.fa --phase-pos=1089.haplotypes.phase.pos --c-output-prefix=1089.haplotypes --parent=f
