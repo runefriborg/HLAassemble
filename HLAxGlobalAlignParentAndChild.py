@@ -51,6 +51,7 @@ class Fasta():
             sys.exit(1)
         
         self.val = records[0].seq
+        self.id = records[0].id
         sys.stdout.write("done\n")
 
 
@@ -154,18 +155,55 @@ class PhasedPositions():
         self.content = L
 
 class Alignment():
-    def __init__(self, fasta, positions):
+    def __init__(self, fasta, positions, parent):
         
-        self.fasta = fasta
+        self.parent = parent
+        self.fasta_id = (str(fasta[0].id), str(fasta[1].id))
+        self.fasta = (str(fasta[0].val), str(fasta[1].val))
         self.segments = positions
 
     def process(self, output_prefix):
         
         sys.stdout.write("Main processing:\n")
 
-        nw.global_align("CEELECANTH", "PELICAN", matrix='PAM250')
-        
 
+        sys.stdout.write("Running global alignment on "+str(len(self.segments)+2)+" segments\n")
+        start = self.segments[0]
+
+        ohandle_fasta_child = open(output_prefix + '.consensus_with_'+self.parent+'.c.fa', "w")
+        ohandle_fasta_parent = open(output_prefix + '.consensus_with_c.'+self.parent+'.fa', "w")
+        sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_'+self.parent+".c.fa...\n")
+        sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_c.'+self.parent+".fa...\n")
+
+
+        # Add header
+        ohandle_fasta_child.write(">"+self.fasta_id[0]+"\n")
+        ohandle_fasta_parent.write(">"+self.fasta_id[1]+"\n")
+
+        # Add fasta before first segment
+        ohandle_fasta_child.write(self.fasta[0][:start[0]])
+        ohandle_fasta_parent.write(self.fasta[1][:start[1]])
+
+
+        for next_phased_pos in self.segments[1:]:
+            sys.stdout.write(str(start[0])+"..+"+str(start[0]-next_phased_pos[0])+"\n")
+            sys.stdout.flush()
+
+            align_child, align_parent = nw.global_align(self.fasta[0][start[0]:next_phased_pos[0]] , self.fasta[1][start[1]:next_phased_pos[1]], matrix='PAM250')
+            ohandle_fasta_child.write(align_child)
+            ohandle_fasta_parent.write(align_parent)
+            
+            start = next_phased_pos
+
+
+            #nw.global_align("CEELECANTH", "PELICAN", matrix='PAM250')
+        
+        # Add fasta after last segment
+        ohandle_fasta_child.write(self.fasta[0][start[0]:])
+        ohandle_fasta_parent.write(self.fasta[1][start[1]:])
+       
+        ohandle_fasta_child.close()
+        ohandle_fasta_parent.close()
 
         sys.stdout.write("Main processing completed.\n")        
 
@@ -185,7 +223,7 @@ def main(args):
     print "CLean2"
     phasePos.clean()
 
-    align = Alignment(faSequence, phasePos)
+    align = Alignment(faSequence, phasePos.content, args.parent)
     align.process(output_prefix=args.c_output_prefix)
     
     
