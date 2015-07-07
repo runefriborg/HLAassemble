@@ -229,7 +229,7 @@ class Assembler():
 
         vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
-        phase_out_list = ([],[],[])
+        phase_out_list = ([],[],[],[],[],[])
 
         # Open output files
         for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
@@ -285,7 +285,7 @@ class Assembler():
                         vcf_offset = vcf_offset + len(val) - replace_len
                         
                         # Add content to phase_out
-                        phase_out_list[index].append(region_end)
+                        phase_out_list[index*2+v].append(region_end+vcf_offset)
 
                     else:
                         # No phasing!
@@ -325,12 +325,10 @@ class Assembler():
         
         # Write phase out list
         phase_out_handle = open(output_prefix + ".phase.pos", "w")
-        phase_out_handle.write("#CHILD\tFATHER\tMOTHER\n")
+        phase_out_handle.write("#CHILD0\tCHILD1\tFATHER0\tFATHER1\tMOTHER0\tMOTHER1\n")
 
-        print([len(x) for x in phase_out_list])
-
-        for c,f,m in itertools.izip_longest(*phase_out_list):
-            phase_out_handle.write("{}\t{}\t{}\n".format(c,f,m))
+        for c0,c1,f0,f1,m0,m1 in itertools.izip_longest(*phase_out_list):
+            phase_out_handle.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(c0,c1,f0,f1,m0,m1))
         
         phase_out_handle.close()
         sys.stdout.write("Main processing completed.\n")        
