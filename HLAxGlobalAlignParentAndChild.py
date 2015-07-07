@@ -105,19 +105,22 @@ class PhasedPositions():
                     continue
 
                 l = line.strip().split('\t')
-                c_pos, f_pos, m_pos = l
+                c0_pos, c1_pos, f0_pos, _ , m0_pos, _ = l
                 
                 # Typecast
-                c_pos = int(c_pos)
 
                 if parent == 'f':
-                    if f_pos != 'None':
-                        f_pos = int(f_pos)
-                        self.content.append((c_pos, f_pos))
+                    if f0_pos != 'None':
+                        p_pos = int(f0_pos)
+                        c_pos = int(c0_pos)
+                        self.content.append((c_pos, p_pos))
                 else:
                     if m_pos != 'None':
                         m_pos = int(m_pos)
-                        self.content.append((c_pos, m_pos))
+                        p_pos = int(m0_pos)
+                        c_pos = int(c1_pos)
+                        self.content.append((c_pos, p_pos))
+
                 
             except ValueError:
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
@@ -130,14 +133,42 @@ class PhasedPositions():
         """
         Removes crossed phased positions 
         """
-        
-        #L = []
-        
-        
-        #for c_pos, m_pos, f_pos in self.content:
-        pass
 
+    
+        L = []
         
+        last = 0
+        for c_pos, p_pos in self.content:
+            if p_pos > last:
+                L.append((c_pos, p_pos))
+            else:
+                L.pop()
+                print(str(last)+ " > " +str(p_pos))
+
+            last = L[-1][1]
+
+            
+        print(len(self.content))
+        print(len(L))
+
+        self.content = L
+
+class Alignment():
+    def __init__(self, fasta, positions):
+        
+        self.fasta = fasta
+        self.segments = positions
+
+    def process(self, output_prefix):
+        
+        sys.stdout.write("Main processing:\n")
+
+        nw.global_align("CEELECANTH", "PELICAN", matrix='PAM250')
+        
+
+
+        sys.stdout.write("Main processing completed.\n")        
+
 ##############################################################
 ####################### Main #################################
 
@@ -149,7 +180,15 @@ def main(args):
         faSequence.append(Fasta(filename))
 
     phasePos = PhasedPositions(args.phase_pos, args.parent)
+    print "CLean1"
+    phasePos.clean()
+    print "CLean2"
+    phasePos.clean()
 
+    align = Alignment(faSequence, phasePos)
+    align.process(output_prefix=args.c_output_prefix)
+    
+    
 ##############################################################
 ######################### Help ###############################
 
