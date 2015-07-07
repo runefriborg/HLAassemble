@@ -229,7 +229,8 @@ class Assembler():
 
         vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
-        phase_out_list = ([],[],[],[],[],[])
+        # Prepare phase_out_pos structure to record the new positions for the six fasta files
+        phase_out_pos = {}
 
         # Open output files
         for index, f in [(0, '.c'),(1, '.f'),(2, '.m')]:
@@ -285,7 +286,10 @@ class Assembler():
                         vcf_offset = vcf_offset + len(val) - replace_len
                         
                         # Add content to phase_out
-                        phase_out_list[index*2+v].append(region_end+vcf_offset)
+                        original_c_pos = entry[0][0]
+                        if not phase_out_pos.has_key(original_c_pos):
+                            phase_out_pos[original_c_pos] = [None, None, None, None, None, None]
+                        phase_out_pos[original_c_pos][index*2+v] = region_end+vcf_offset
 
                     else:
                         # No phasing!
@@ -326,9 +330,15 @@ class Assembler():
         # Write phase out list
         phase_out_handle = open(output_prefix + ".phase.pos", "w")
         phase_out_handle.write("#CHILD0\tCHILD1\tFATHER0\tFATHER1\tMOTHER0\tMOTHER1\n")
+        
+        keys = phase_out_pos.keys()
+        keys.sort()
 
-        for c0,c1,f0,f1,m0,m1 in itertools.izip_longest(*phase_out_list):
-            phase_out_handle.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(c0,c1,f0,f1,m0,m1))
+        for original_phase_pos in keys:
+            phase_out_handle.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(*phase_out_pos[original_phase_pos]))
+
+        #for c0,c1,f0,f1,m0,m1 in itertools.izip_longest(*phase_out_list):
+        #    phase_out_handle.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(c0,c1,f0,f1,m0,m1))
         
         phase_out_handle.close()
         sys.stdout.write("Main processing completed.\n")        
