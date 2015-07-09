@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """
 
-
 Read fasta input from parent and child.
 
 Read the phased information and filter out any phased entries with positions crossing
@@ -27,8 +26,8 @@ import nwalign as nw
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.01"
-UPDATED="2015-07-05"
+VERSION="0.02"
+UPDATED="2015-07-09"
 
 ##############################################################
 ####################### Classes #################################
@@ -186,17 +185,19 @@ class Alignment():
 
 
         for next_phased_pos in self.segments[1:]:
-            sys.stdout.write(str(start[0])+"..+"+str(start[0]-next_phased_pos[0])+"\n")
+            child = self.fasta[0][start[0]:next_phased_pos[0]]
+            parent = self.fasta[1][start[1]:next_phased_pos[1]]
+            
+            sys.stdout.write(str(start[0])+"..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(((15*len(child)*len(parent))/1024)/1024) + "MB score: ")
             sys.stdout.flush()
 
-            align_child, align_parent = nw.global_align(self.fasta[0][start[0]:next_phased_pos[0]] , self.fasta[1][start[1]:next_phased_pos[1]], matrix='PAM250')
+            align_child, align_parent = nw.global_align(child, parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
             ohandle_fasta_child.write(align_child)
             ohandle_fasta_parent.write(align_parent)
-            
+
+            print(nw.score_alignment(align_child, align_parent, gap_open=-1, gap_extend=-1, matrix='PAM250'))
+                
             start = next_phased_pos
-
-
-            #nw.global_align("CEELECANTH", "PELICAN", matrix='PAM250')
         
         # Add fasta after last segment
         ohandle_fasta_child.write(self.fasta[0][start[0]:])
