@@ -26,7 +26,7 @@ import nwalign as nw
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.02"
+VERSION="0.03"
 UPDATED="2015-07-09"
 
 ##############################################################
@@ -154,9 +154,10 @@ class PhasedPositions():
         self.content = L
 
 class Alignment():
-    def __init__(self, fasta, positions, parent):
+    def __init__(self, fasta, positions, parent, max_mem):
         
         self.parent = parent
+        self.max_mem_mb = max_mem*1024
         self.fasta_id = (str(fasta[0].id), str(fasta[1].id))
         self.fasta = (str(fasta[0].val), str(fasta[1].val))
         self.segments = positions
@@ -188,14 +189,15 @@ class Alignment():
             child = self.fasta[0][start[0]:next_phased_pos[0]]
             parent = self.fasta[1][start[1]:next_phased_pos[1]]
             
-            sys.stdout.write(str(start[0])+"..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(((15*len(child)*len(parent))/1024)/1024) + "MB score: ")
-            sys.stdout.flush()
+            sys.stdout.write(str(start[0]))
+            align_child, align_parent, score = self.nwalign(child, parent)
+            print(" : Final score: " + str(score))
+            
+            for seq in align_child:
+                ohandle_fasta_child.write(seq)
 
-            align_child, align_parent = nw.global_align(child, parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
-            ohandle_fasta_child.write(align_child)
-            ohandle_fasta_parent.write(align_parent)
-
-            print(nw.score_alignment(align_child, align_parent, gap_open=-1, gap_extend=-1, matrix='PAM250'))
+            for seq in align_parent:
+                ohandle_fasta_parent.write(seq)
                 
             start = next_phased_pos
         
@@ -207,6 +209,98 @@ class Alignment():
         ohandle_fasta_parent.close()
 
         sys.stdout.write("Main processing completed.\n")        
+
+    def nwalign(self, child, parent, l=0):
+
+        result_child = []
+        result_parent = []
+        score = 0
+
+        estimated_mem = ((15*len(child)*len(parent))/1024)/1024
+
+        sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(estimated_mem)+"MB")
+        sys.stdout.flush()
+
+
+        if estimated_mem > self.max_mem_mb:
+
+            # First split on child
+            # Splits both sequences based on the half lenght of the child sequence
+            # Aligns from the start
+            split = len(child)/2
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
+            sub_score = score_1+score_2
+
+            # Set initial best
+            best_score = sub_score
+            best_result_child = sub_result_child_1 + sub_result_child_2
+            best_result_parent = sub_result_parent_1 + sub_result_parent_2
+
+            # Second split on child
+            # Splits both sequences based on the half lenght of the child sequence
+            # Aligns from the end
+            split = -1*(len(child)/2)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
+            sub_score = score_1+score_2
+
+            # Update best
+            if sub_score > best_score:
+                best_score = sub_score
+                best_result_child = sub_result_child_1 + sub_result_child_2
+                best_result_parent = sub_result_parent_1 + sub_result_parent_2
+
+            # First split on parent
+            # Splits both sequences based on the half lenght of the parent sequence
+            # Aligns from the start
+            split = len(parent)/2
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
+            sub_score = score_1+score_2
+
+            # Update best
+            if sub_score > best_score:
+                best_score = sub_score
+                best_result_child = sub_result_child_1 + sub_result_child_2
+                best_result_parent = sub_result_parent_1 + sub_result_parent_2
+
+            # Second split on parent
+            # Splits both sequences based on the half lenght of the parent sequence
+            # Aligns from the end
+            split = -1*(len(parent)/2)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
+            sys.stdout.write("\n\t"+"\t"*l)
+            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
+            sub_score = score_1+score_2
+
+            # Update best
+            if sub_score > best_score:
+                best_score = sub_score
+                best_result_child = sub_result_child_1 + sub_result_child_2
+                best_result_parent = sub_result_parent_1 + sub_result_parent_2
+
+
+            score = best_score            
+            result_child.extend(best_result_child)
+            result_parent.extend(best_result_parent)
+        else:                    
+        
+            align_child, align_parent = nw.global_align(child, parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
+        
+            score = nw.score_alignment(align_child, align_parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
+            
+            result_child.extend(align_child)
+            result_parent.extend(align_parent)
+
+        return result_child, result_parent, score
 
 ##############################################################
 ####################### Main #################################
@@ -224,7 +318,7 @@ def main(args):
     print "CLean2"
     phasePos.clean()
 
-    align = Alignment(faSequence, phasePos.content, args.parent)
+    align = Alignment(faSequence, phasePos.content, args.parent, max_mem=args.max_mem)
     align.process(output_prefix=args.c_output_prefix)
     
     
@@ -237,7 +331,8 @@ Usage:
   HLAxAssembleFastaFromPhasing \
     --parent-vcf=<file> --parent-fa=<fasta file from previous HLAx stage> --parent=m|f \
     --c-vcf=<file> --c-fa=<fasta file from previous HLAx stage> \
-    --phase-pos=<output from previous HLAx stage> --c-output-prefix=<file prefix>
+    --phase-pos=<output from previous HLAx stage> --c-output-prefix=<file prefix> \
+    --max-mem=1024 (gigabyte)
 """)
 
 
@@ -250,6 +345,7 @@ class ArgContainer():
         self.c_fa     = ""
         self.phase_pos  = ""
         self.c_output_prefix  = ""
+        self.max_mem  = 1024
 
     def ok(self):
         err = 0
@@ -285,7 +381,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "parent-vcf=", "parent-fa=", "parent=", "c-vcf=", "c-fa=", "phase-pos=", "c-output-prefix="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "parent-vcf=", "parent-fa=", "parent=", "c-vcf=", "c-fa=", "phase-pos=", "c-output-prefix=", "max-mem="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -311,6 +407,8 @@ if __name__ == '__main__':
             args.phase_pos = a
         elif o == "--c-output-prefix":
             args.c_output_prefix = a
+        elif o == "--max-mem":
+            args.max_mem = int(a)
         elif o == "--help":
             usage()
             sys.exit()
