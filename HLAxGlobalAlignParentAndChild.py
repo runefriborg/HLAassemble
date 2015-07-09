@@ -293,9 +293,9 @@ class Alignment():
             result_parent.extend(best_result_parent)
         else:                    
         
-            align_child, align_parent = nw.global_align(child, parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
+            align_child, align_parent = nw.global_align(child, parent, gap_open=-6, gap_extend=-2, matrix='NUC.4.4')
         
-            score = nw.score_alignment(align_child, align_parent, gap_open=-1, gap_extend=-1, matrix='PAM250')
+            score = nw.score_alignment(align_child, align_parent, gap_open=-6, gap_extend=-2, matrix='NUC.4.4')
             
             result_child.extend(align_child)
             result_parent.extend(align_parent)
