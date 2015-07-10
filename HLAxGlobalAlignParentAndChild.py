@@ -192,14 +192,19 @@ class Alignment():
             child = self.fasta[0][start[0]:next_phased_pos[0]]
             parent = self.fasta[1][start[1]:next_phased_pos[1]]
             
-            sys.stdout.write(str(start[0]))
+            sys.stdout.write("\n"+str(start[0]))
             align_child, align_parent = self.EMBOSSnwalign(child, parent)
             
+            i = 0
             for seq in align_child:
+                i += len(seq)
                 ohandle_fasta_child.write(seq)
 
+            j = 0
             for seq in align_parent:
+                j += len(seq)
                 ohandle_fasta_parent.write(seq)
+            sys.stdout.write("Wrote "+str(i)+"|"+str(j)+"\n")
                 
             start = next_phased_pos
         
@@ -215,10 +220,7 @@ class Alignment():
     def EMBOSSnwalign(self, child, parent, l=0):
 
         estimated_mem = ((14*len(child)*len(parent))/1024)/1024
-        sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(estimated_mem)+"MB\n")
-        sys.stdout.flush()
-
-        
+        sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent)))            
 
         aSeq = open("/dev/shm/"+PID+"_a", "w")
         bSeq = open("/dev/shm/"+PID+"_b", "w")
@@ -229,8 +231,19 @@ class Alignment():
         bSeq.write(parent)
         bSeq.close()
         cSeq.close()
-        
-        p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+
+        if (estimated_mem < self.max_mem_mb):
+            sys.stdout.write(" mem using needle: " +str(estimated_mem)+"MB\n")
+            sys.stdout.flush()
+
+            p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+
+        else:
+            sys.stdout.write(" using stretcher!! Increase --max-mem to "+str((estimated_mem/1024)+1)+"G to use needle\n")
+            sys.stdout.flush()
+
+            p = subprocess.Popen(["stretcher", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+
         p.communicate(None)
 
         os.unlink(aSeq.name)
@@ -257,33 +270,64 @@ class Alignment():
         
         
             try:
-                child_done = False
-                parent_done = False
-                while (not child_done and not parent_done):
-                    line = cSeq.next()
-                    seq_child = line[21:71]
-                    cSeq.next()
-                    line = cSeq.next()
-                    seq_parent = line[21:71]
-                    cSeq.next()
+                if (estimated_mem < self.max_mem_mb):
+                    child_done = False
+                    parent_done = False
+                    while (not child_done and not parent_done):
+                        line = cSeq.next()
+                        seq_child = line[21:71]
+                        cSeq.next()
+                        line = cSeq.next()
+                        seq_parent = line[21:71]
+                        cSeq.next()
             
-                    if ' ' in seq_child:
-                        result_child.append(seq_child[:seq_child.index(' ')])
-                        child_done = True
-                    else:
-                        result_child.append(seq_child)
+                        if ' ' in seq_child:
+                            result_child.append(seq_child[:seq_child.index(' ')])
+                            child_done = True
+                        else:
+                            result_child.append(seq_child)
             
 
-                    if ' ' in seq_parent:
-                        result_parent.append(seq_parent[:seq_parent.index(' ')])
-                        parent_done = True
-                    else:
-                        result_parent.append(seq_parent)
+                        if ' ' in seq_parent:
+                            result_parent.append(seq_parent[:seq_parent.index(' ')])
+                            parent_done = True
+                        else:
+                            result_parent.append(seq_parent)
+                else:
+                    
+                    cSeq.next()
+
+                    child_done = False
+                    parent_done = False
+                    while (not child_done and not parent_done):
+                        line = cSeq.next()
+                        seq_child = line[7:57]
+                        cSeq.next()
+                        line = cSeq.next()
+                        seq_parent = line[7:57]
+                        cSeq.next()
+                        cSeq.next()
+                        cSeq.next()
+
+                        if '\n' in seq_child:
+                            result_child.append(seq_child[:seq_child.index('\n')])
+                            child_done = True
+                        else:
+                            result_child.append(seq_child)
+            
+
+                        if '\n' in seq_parent:
+                            result_parent.append(seq_parent[:seq_parent.index('\n')])
+                            parent_done = True
+                        else:
+                            result_parent.append(seq_parent)
+                                                
             except StopIteration:
                 pass
 
+            os.unlink(cSeq.name)
         else:
-            sys.stderr.write("Error! EMBOSS needle failed with returncode: "+ str(p.returncode) + "\n")
+            sys.stderr.write("Error! EMBOSS needle/stretcher failed with returncode: "+ str(p.returncode) + "\n")
 
         return result_child, result_parent
 
