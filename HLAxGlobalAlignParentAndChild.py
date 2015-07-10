@@ -20,14 +20,17 @@ import gzip
 from Bio import SeqIO
 import vcf
 import itertools
-import nwalign as nw
+import tempfile
+import subprocess
+import os
 
 
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.03"
-UPDATED="2015-07-09"
+VERSION="0.04"
+UPDATED="2015-07-10"
+PID=str(os.getpid())
 
 ##############################################################
 ####################### Classes #################################
@@ -190,8 +193,7 @@ class Alignment():
             parent = self.fasta[1][start[1]:next_phased_pos[1]]
             
             sys.stdout.write(str(start[0]))
-            align_child, align_parent, score = self.nwalign(child, parent)
-            print(" : Final score: " + str(score))
+            align_child, align_parent = self.EMBOSSnwalign(child, parent)
             
             for seq in align_child:
                 ohandle_fasta_child.write(seq)
@@ -210,97 +212,81 @@ class Alignment():
 
         sys.stdout.write("Main processing completed.\n")        
 
-    def nwalign(self, child, parent, l=0):
+    def EMBOSSnwalign(self, child, parent, l=0):
 
-        result_child = []
-        result_parent = []
-        score = 0
-
-        estimated_mem = ((15*len(child)*len(parent))/1024)/1024
-
-        sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(estimated_mem)+"MB")
+        estimated_mem = ((14*len(child)*len(parent))/1024)/1024
+        sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent))+" mem: " +str(estimated_mem)+"MB\n")
         sys.stdout.flush()
 
-
-        if estimated_mem > self.max_mem_mb:
-
-            # First split on child
-            # Splits both sequences based on the half lenght of the child sequence
-            # Aligns from the start
-            split = len(child)/2
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
-            sub_score = score_1+score_2
-
-            # Set initial best
-            best_score = sub_score
-            best_result_child = sub_result_child_1 + sub_result_child_2
-            best_result_parent = sub_result_parent_1 + sub_result_parent_2
-
-            # Second split on child
-            # Splits both sequences based on the half lenght of the child sequence
-            # Aligns from the end
-            split = -1*(len(child)/2)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
-            sub_score = score_1+score_2
-
-            # Update best
-            if sub_score > best_score:
-                best_score = sub_score
-                best_result_child = sub_result_child_1 + sub_result_child_2
-                best_result_parent = sub_result_parent_1 + sub_result_parent_2
-
-            # First split on parent
-            # Splits both sequences based on the half lenght of the parent sequence
-            # Aligns from the start
-            split = len(parent)/2
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
-            sub_score = score_1+score_2
-
-            # Update best
-            if sub_score > best_score:
-                best_score = sub_score
-                best_result_child = sub_result_child_1 + sub_result_child_2
-                best_result_parent = sub_result_parent_1 + sub_result_parent_2
-
-            # Second split on parent
-            # Splits both sequences based on the half lenght of the parent sequence
-            # Aligns from the end
-            split = -1*(len(parent)/2)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_1, sub_result_parent_1, score_1  = self.nwalign(child[:split], parent[:split], l=l+1)
-            sys.stdout.write("\n\t"+"\t"*l)
-            sub_result_child_2, sub_result_parent_2, score_2  = self.nwalign(child[split:], parent[split:], l=l+1)
-            sub_score = score_1+score_2
-
-            # Update best
-            if sub_score > best_score:
-                best_score = sub_score
-                best_result_child = sub_result_child_1 + sub_result_child_2
-                best_result_parent = sub_result_parent_1 + sub_result_parent_2
-
-
-            score = best_score            
-            result_child.extend(best_result_child)
-            result_parent.extend(best_result_parent)
-        else:                    
         
-            align_child, align_parent = nw.global_align(child, parent, gap_open=-6, gap_extend=-2, matrix='NUC.4.4')
+
+        aSeq = open("/dev/shm/"+PID+"_a", "w")
+        bSeq = open("/dev/shm/"+PID+"_b", "w")
+        cSeq = open("/dev/shm/"+PID+"_c", "w")
         
-            score = nw.score_alignment(align_child, align_parent, gap_open=-6, gap_extend=-2, matrix='NUC.4.4')
+        aSeq.write(child)
+        aSeq.close()
+        bSeq.write(parent)
+        bSeq.close()
+        cSeq.close()
+        
+        p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+        p.communicate(None)
+
+        os.unlink(aSeq.name)
+        os.unlink(bSeq.name)
+
+        if p.returncode == 0:
+            # Get result
+            cSeq = open(cSeq.name, "r")
+        
+            # Skip first 25 lines
+            for i in xrange(25):
+                cSeq.next()
             
-            result_child.extend(align_child)
-            result_parent.extend(align_parent)
+            sys.stdout.write(cSeq.next())
+            sys.stdout.write(cSeq.next())
+            sys.stdout.write(cSeq.next())
+        
+            # Skip 5 lines
+            for i in xrange(4):
+                cSeq.next()
 
-        return result_child, result_parent, score
+            result_child = []
+            result_parent = []
+        
+        
+            try:
+                child_done = False
+                parent_done = False
+                while (not child_done and not parent_done):
+                    line = cSeq.next()
+                    seq_child = line[21:71]
+                    cSeq.next()
+                    line = cSeq.next()
+                    seq_parent = line[21:71]
+                    cSeq.next()
+            
+                    if ' ' in seq_child:
+                        result_child.append(seq_child[:seq_child.index(' ')])
+                        child_done = True
+                    else:
+                        result_child.append(seq_child)
+            
+
+                    if ' ' in seq_parent:
+                        result_parent.append(seq_parent[:seq_parent.index(' ')])
+                        parent_done = True
+                    else:
+                        result_parent.append(seq_parent)
+            except StopIteration:
+                pass
+
+        else:
+            sys.stderr.write("Error! EMBOSS needle failed with returncode: "+ str(p.returncode) + "\n")
+
+        return result_child, result_parent
+
 
 ##############################################################
 ####################### Main #################################
