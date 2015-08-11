@@ -157,9 +157,11 @@ class PhasedPositions():
         self.content = L
 
 class Alignment():
-    def __init__(self, fasta, positions, parent, max_mem):
+    def __init__(self, fasta, positions, parent, gapopen, gapextend, max_mem):
         
         self.parent = parent
+        self.gapopen = gapopen
+        self.gapextend = gapextend
         self.max_mem_mb = max_mem*1024
         self.fasta_id = (str(fasta[0].id), str(fasta[1].id))
         self.fasta = (str(fasta[0].val), str(fasta[1].val))
@@ -262,13 +264,13 @@ class Alignment():
             sys.stdout.write(" mem using needle: " +str(estimated_mem)+"MB\n")
             sys.stdout.flush()
 
-            p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+            p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
 
         else:
             sys.stdout.write(" using stretcher!! Increase --max-mem to "+str((estimated_mem/1024)+1)+"G to use needle\n")
             sys.stdout.flush()
 
-            p = subprocess.Popen(["stretcher", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", "6", "-gapextend", "2", "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+            p = subprocess.Popen(["stretcher", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
 
         p.communicate(None)
 
@@ -374,7 +376,7 @@ def main(args):
     print "CLean2"
     phasePos.clean()
 
-    align = Alignment(faSequence, phasePos.content, args.parent, max_mem=args.max_mem)
+    align = Alignment(faSequence, phasePos.content, args.parent, gapopen=args.gapopen, gapextend=args.gapextend, max_mem=args.max_mem)
     align.process(output_prefix=args.c_output_prefix)
     
     
@@ -388,6 +390,7 @@ Usage:
     --parent-vcf=<file> --parent-fa=<fasta file from previous HLAx stage> --parent=m|f \
     --c-vcf=<file> --c-fa=<fasta file from previous HLAx stage> \
     --phase-pos=<output from previous HLAx stage> --c-output-prefix=<file prefix> \
+    --gapopen=6 --gapextend=2
     --max-mem=1024 (gigabyte)
 """)
 
@@ -401,6 +404,8 @@ class ArgContainer():
         self.c_fa     = ""
         self.phase_pos  = ""
         self.c_output_prefix  = ""
+        self.gapopen = 6
+        self.gapextend = 2
         self.max_mem  = 1024
 
     def ok(self):
@@ -437,7 +442,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "parent-vcf=", "parent-fa=", "parent=", "c-vcf=", "c-fa=", "phase-pos=", "c-output-prefix=", "max-mem="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "parent-vcf=", "parent-fa=", "parent=", "c-vcf=", "c-fa=", "phase-pos=", "c-output-prefix=", "gapopen=", "gapextend=", "max-mem="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -463,6 +468,10 @@ if __name__ == '__main__':
             args.phase_pos = a
         elif o == "--c-output-prefix":
             args.c_output_prefix = a
+        elif o == "--gapopen":
+            args.gapopen = int(a)
+        elif o == "--gapextend":
+            args.gapextend = int(a)
         elif o == "--max-mem":
             args.max_mem = int(a)
         elif o == "--help":
