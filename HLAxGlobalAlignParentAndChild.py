@@ -28,8 +28,8 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.04"
-UPDATED="2015-07-10"
+VERSION="0.05"
+UPDATED="2015-08-11"
 PID=str(os.getpid())
 
 ##############################################################
@@ -165,6 +165,21 @@ class Alignment():
         self.fasta = (str(fasta[0].val), str(fasta[1].val))
         self.segments = positions
 
+
+    def merge(self, seq_child, seq_parent):
+        
+        merged = list(seq_child)
+        if (len(seq_child) == len(seq_parent)):
+            # merge
+            for pos in xrange(len(seq_child)):
+                if seq_child[pos] == 'N' or seq_child[pos] == '-':
+                    merged[pos] = seq_parent[pos]
+        else:
+            # Skip beginning and end sequence, which is different in length and have not been aligned.
+            pass
+        
+        return "".join(merged)
+
     def process(self, output_prefix):
         
         sys.stdout.write("Main processing:\n")
@@ -175,17 +190,23 @@ class Alignment():
 
         ohandle_fasta_child = open(output_prefix + '.consensus_with_'+self.parent+'.c.fa', "w")
         ohandle_fasta_parent = open(output_prefix + '.consensus_with_c.'+self.parent+'.fa', "w")
+        ohandle_merged_parent_into_child = open(output_prefix + '.merged_'+self.parent+'_into_c.fa', "w")
+
         sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_'+self.parent+".c.fa...\n")
         sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_c.'+self.parent+".fa...\n")
+        sys.stdout.write("\tWriting " + output_prefix + '.merged_'+self.parent+'_into_c.fa...\n')
 
 
         # Add header
         ohandle_fasta_child.write(">"+self.fasta_id[0]+"\n")
         ohandle_fasta_parent.write(">"+self.fasta_id[1]+"\n")
+        ohandle_merged_parent_into_child.write(">"+self.fasta_id[0]+"\n")
 
         # Add fasta before first segment
         ohandle_fasta_child.write(self.fasta[0][:start[0]])
         ohandle_fasta_parent.write(self.fasta[1][:start[1]])
+
+        ohandle_merged_parent_into_child.write(self.merge(self.fasta[0][:start[0]], self.fasta[1][:start[1]]))
 
 
         for next_phased_pos in self.segments[1:]:
@@ -196,14 +217,16 @@ class Alignment():
             align_child, align_parent = self.EMBOSSnwalign(child, parent)
             
             i = 0
-            for seq in align_child:
-                i += len(seq)
-                ohandle_fasta_child.write(seq)
-
             j = 0
-            for seq in align_parent:
-                j += len(seq)
-                ohandle_fasta_parent.write(seq)
+            for seq_child,seq_parent in zip(align_child, align_parent):
+                i += len(seq_child)
+                j += len(seq_parent)
+                
+                ohandle_fasta_child.write(seq_child)
+                ohandle_fasta_parent.write(seq_parent)
+                
+                ohandle_merged_parent_into_child.write(self.merge(seq_child, seq_parent))
+
             sys.stdout.write("Wrote "+str(i)+"|"+str(j)+"\n")
                 
             start = next_phased_pos
@@ -211,9 +234,12 @@ class Alignment():
         # Add fasta after last segment
         ohandle_fasta_child.write(self.fasta[0][start[0]:])
         ohandle_fasta_parent.write(self.fasta[1][start[1]:])
+        ohandle_merged_parent_into_child.write(self.merge(self.fasta[0][start[0]:],self.fasta[1][start[1]:]))
        
         ohandle_fasta_child.close()
         ohandle_fasta_parent.close()
+        ohandle_merged_parent_into_child.close()
+
 
         sys.stdout.write("Main processing completed.\n")        
 
