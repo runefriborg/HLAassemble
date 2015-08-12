@@ -264,13 +264,13 @@ class Alignment():
             sys.stdout.write(" mem using needle: " +str(estimated_mem)+"MB\n")
             sys.stdout.flush()
 
-            p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+            p = subprocess.Popen(["needle", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name])
 
         else:
             sys.stdout.write(" using stretcher!! Increase --max-mem to "+str((estimated_mem/1024)+1)+"G to use needle\n")
             sys.stdout.flush()
 
-            p = subprocess.Popen(["stretcher", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name], stderr=subprocess.PIPE)
+            p = subprocess.Popen(["stretcher", "-asequence", aSeq.name, "-bsequence", bSeq.name, "-gapopen", str(self.gapopen), "-gapextend", str(self.gapextend), "-datafile", "NUC.4.4", "-outfile",cSeq.name])
 
         p.communicate(None)
 
