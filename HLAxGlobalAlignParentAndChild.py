@@ -190,13 +190,13 @@ class Alignment():
         sys.stdout.write("Running global alignment on "+str(len(self.segments)+2)+" segments\n")
         start = self.segments[0]
 
-        ohandle_fasta_child = open(output_prefix + '.consensus_with_'+self.parent+'.c.fa', "w")
-        ohandle_fasta_parent = open(output_prefix + '.consensus_with_c.'+self.parent+'.fa', "w")
-        ohandle_merged_parent_into_child = open(output_prefix + '.merged_'+self.parent+'_into_c.fa', "w")
+        ohandle_fasta_child = open(output_prefix + '.aligned_against_'+self.parent+'.c.fa', "w")
+        ohandle_fasta_parent = open(output_prefix + '.aligned_against_c.'+self.parent+'.fa', "w")
+        ohandle_merged_parent_into_child = open(output_prefix + '.consensus_of_'+self.parent+'.c.fa', "w")
 
-        sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_'+self.parent+".c.fa...\n")
-        sys.stdout.write("\tWriting " + output_prefix + '.consensus_with_c.'+self.parent+".fa...\n")
-        sys.stdout.write("\tWriting " + output_prefix + '.merged_'+self.parent+'_into_c.fa...\n')
+        sys.stdout.write("\tWriting " + output_prefix + '.aligned_against_'+self.parent+".c.fa...\n")
+        sys.stdout.write("\tWriting " + output_prefix + '.aligned_against_c.'+self.parent+".fa...\n")
+        sys.stdout.write("\tWriting " + output_prefix + '.consensus_of_'+self.parent+'.c.fa...\n')
 
 
         # Add header
