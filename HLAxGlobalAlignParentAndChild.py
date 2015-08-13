@@ -28,7 +28,7 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.06"
+VERSION="0.07"
 UPDATED="2015-08-13"
 PID=str(os.getpid())
 
@@ -157,8 +157,9 @@ class PhasedPositions():
         self.content = L
 
 class Alignment():
-    def __init__(self, fasta, positions, parent, gapopen, gapextend, max_mem):
-        
+    def __init__(self, fasta, vcf, positions, parent, gapopen, gapextend, max_mem):
+
+        self.vcf = vcf.val
         self.parent = parent
         self.gapopen = gapopen
         self.gapextend = gapextend
@@ -182,10 +183,28 @@ class Alignment():
         
         return "".join(merged)
 
+    def write_vcf_range(self, vcf_writer, alignment, pos_start, vcf_offset):
+
+        # Write vcf with corrected positions
+        pos = pos_start
+        for c in alignment:
+            if c == '-':
+                vcf_offset += 1
+            else:
+                if self.vcf.has_key(pos):
+                    record = self.vcf[pos]
+                    record.POS = pos + vcf_offset
+                    vcf_writer.write_record(record)
+                pos += 1
+        
+        return pos, vcf_offset
+
+
     def process(self, output_prefix):
         
         sys.stdout.write("Main processing:\n")
 
+        vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
         sys.stdout.write("Running global alignment on "+str(len(self.segments)+2)+" segments\n")
         start = self.segments[0]
@@ -194,10 +213,13 @@ class Alignment():
         ohandle_fasta_parent = open(output_prefix + '.aligned_against_c.'+self.parent+'.fa', "w")
         ohandle_merged_parent_into_child = open(output_prefix + '.consensus_of_'+self.parent+'.c.fa', "w")
 
+        ohandle_vcf = open(output_prefix + '.consensus_of_'+self.parent+'.c.vcf', "w")
+        vcf_writer = vcf.Writer(ohandle_vcf, vcf_template)
+
         sys.stdout.write("\tWriting " + output_prefix + '.aligned_against_'+self.parent+".c.fa...\n")
         sys.stdout.write("\tWriting " + output_prefix + '.aligned_against_c.'+self.parent+".fa...\n")
         sys.stdout.write("\tWriting " + output_prefix + '.consensus_of_'+self.parent+'.c.fa...\n')
-
+        sys.stdout.write("\tWriting " + output_prefix + '.consensus_of_'+self.parent+'.c.vcf...\n')
 
         # Add header
         ohandle_fasta_child.write(">"+self.fasta_id[0]+"\n")
@@ -210,6 +232,11 @@ class Alignment():
 
         ohandle_merged_parent_into_child.write(self.merge(self.fasta[0][:start[0]], self.fasta[1][:start[1]]))
 
+        # Fix VCF offset
+        pos_start = 0
+        vcf_offset = 0
+
+        pos_start, vcf_offset = self.write_vcf_range(vcf_writer, self.fasta[0][:start[0]], pos_start, vcf_offset)
 
         for next_phased_pos in self.segments[1:]:
             child = self.fasta[0][start[0]:next_phased_pos[0]]
@@ -228,6 +255,8 @@ class Alignment():
                 ohandle_fasta_parent.write(seq_parent)
                 
                 ohandle_merged_parent_into_child.write(self.merge(seq_child, seq_parent))
+                
+                pos_start, vcf_offset = self.write_vcf_range(vcf_writer, seq_child, pos_start, vcf_offset)
 
             sys.stdout.write("Wrote "+str(i)+"|"+str(j)+"\n")
                 
@@ -237,10 +266,14 @@ class Alignment():
         ohandle_fasta_child.write(self.fasta[0][start[0]:])
         ohandle_fasta_parent.write(self.fasta[1][start[1]:])
         ohandle_merged_parent_into_child.write(self.merge(self.fasta[0][start[0]:],self.fasta[1][start[1]:]))
+
+        pos_start, vcf_offset = self.write_vcf_range(vcf_writer, self.fasta[0][start[0]:], pos_start, vcf_offset)
+
        
         ohandle_fasta_child.close()
         ohandle_fasta_parent.close()
         ohandle_merged_parent_into_child.close()
+        ohandle_vcf.close()
 
 
         sys.stdout.write("Main processing completed.\n")        
@@ -370,11 +403,16 @@ class Alignment():
 ####################### Main #################################
 
 def main(args):
+    global VCF_OUTPUT_TEMPLATE
+    VCF_OUTPUT_TEMPLATE = args.c_vcf
 
     # Read Fasta files (child and parent)
     faSequence = []
     for filename in [args.c_fa, args.parent_fa]:
         faSequence.append(Fasta(filename))
+
+    # Read VCF file for child
+    childVCFRecords = VCF(args.c_vcf)
 
     phasePos = PhasedPositions(args.phase_pos, args.parent)
     print "CLean1"
@@ -382,7 +420,7 @@ def main(args):
     print "CLean2"
     phasePos.clean()
 
-    align = Alignment(faSequence, phasePos.content, args.parent, gapopen=args.gapopen, gapextend=args.gapextend, max_mem=args.max_mem)
+    align = Alignment(faSequence, childVCFRecords, phasePos.content, args.parent, gapopen=args.gapopen, gapextend=args.gapextend, max_mem=args.max_mem)
     align.process(output_prefix=args.c_output_prefix)
     
     
