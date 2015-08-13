@@ -245,7 +245,7 @@ class Alignment():
 
         sys.stdout.write("Main processing completed.\n")        
 
-    def EMBOSSnwalign(self, child, parent, l=0):
+    def EMBOSSnwalign(self, child, parent, force_stretcher=False):
 
         estimated_mem = ((14*len(child)*len(parent))/1024)/1024
         sys.stdout.write("..+"+str(len(child))+"|"+str(len(parent)))            
@@ -260,7 +260,7 @@ class Alignment():
         bSeq.close()
         cSeq.close()
 
-        if (estimated_mem < self.max_mem_mb):
+        if (estimated_mem < self.max_mem_mb and not force_stretcher):
             sys.stdout.write(" mem using needle: " +str(estimated_mem)+"MB\n")
             sys.stdout.flush()
 
@@ -298,7 +298,7 @@ class Alignment():
         
         
             try:
-                if (estimated_mem < self.max_mem_mb):
+                if (estimated_mem < self.max_mem_mb and not force_stretcher):
                     child_done = False
                     parent_done = False
                     while (not child_done and not parent_done):
@@ -355,7 +355,13 @@ class Alignment():
 
             os.unlink(cSeq.name)
         else:
-            sys.stderr.write("Error! EMBOSS needle/stretcher failed with returncode: "+ str(p.returncode) + "\n")
+            if (estimated_mem < self.max_mem_mb and not force_stretcher):
+                sys.stderr.write("Warning! EMBOSS needle failed with returncode: "+ str(p.returncode) + "\n")
+                sys.stderr.write("Trying to run with EMBOSS stretcher")
+                result_child, result_parent = self.EMBOSSnwalign(child, parent, force_stretcher=True)
+            else:
+                sys.stderr.write("Error! EMBOSS stretcher failed with returncode: "+ str(p.returncode) + "\n")
+                sys.exit(1)
 
         return result_child, result_parent
 
