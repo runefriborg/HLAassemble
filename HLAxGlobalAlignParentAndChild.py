@@ -28,8 +28,8 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.05"
-UPDATED="2015-08-11"
+VERSION="0.06"
+UPDATED="2015-08-13"
 PID=str(os.getpid())
 
 ##############################################################
@@ -274,10 +274,10 @@ class Alignment():
 
         p.communicate(None)
 
-        os.unlink(aSeq.name)
-        os.unlink(bSeq.name)
-
         if p.returncode == 0:
+            os.unlink(aSeq.name)
+            os.unlink(bSeq.name)
+
             # Get result
             cSeq = open(cSeq.name, "r")
         
