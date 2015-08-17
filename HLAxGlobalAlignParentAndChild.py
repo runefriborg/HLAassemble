@@ -118,8 +118,7 @@ class PhasedPositions():
                         c_pos = int(c0_pos)
                         self.content.append((c_pos, p_pos))
                 else:
-                    if m_pos != 'None':
-                        m_pos = int(m_pos)
+                    if m0_pos != 'None':
                         p_pos = int(m0_pos)
                         c_pos = int(c1_pos)
                         self.content.append((c_pos, p_pos))
@@ -136,7 +135,6 @@ class PhasedPositions():
         """
         Removes crossed phased positions 
         """
-
     
         L = []
         
@@ -150,9 +148,7 @@ class PhasedPositions():
 
             last = L[-1][1]
 
-            
-        print(len(self.content))
-        print(len(L))
+        sys.stdout.write("Removed "+str(len(self.content)-len(L))+" cross-phased positions\n")
 
         self.content = L
 
@@ -206,7 +202,7 @@ class Alignment():
 
         vcf_template = vcf.Reader(filename=VCF_OUTPUT_TEMPLATE)
 
-        sys.stdout.write("Running global alignment on "+str(len(self.segments)+2)+" segments\n")
+        sys.stdout.write("Running global alignment on "+str(len(self.segments))+" segments\n")
         start = self.segments[0]
 
         ohandle_fasta_child = open(output_prefix + '.aligned_against_'+self.parent+'.c.fa', "w")
@@ -415,9 +411,6 @@ def main(args):
     childVCFRecords = VCF(args.c_vcf)
 
     phasePos = PhasedPositions(args.phase_pos, args.parent)
-    print "CLean1"
-    phasePos.clean()
-    print "CLean2"
     phasePos.clean()
 
     align = Alignment(faSequence, childVCFRecords, phasePos.content, args.parent, gapopen=args.gapopen, gapextend=args.gapextend, max_mem=args.max_mem)
