@@ -21,7 +21,7 @@ import os
 ####################### Configuration ########################
 
 VERSION="0.01"
-UPDATED="2015-09-18"
+UPDATED="2015-09-21"
 PID=str(os.getpid())
 
 ##############################################################
@@ -44,10 +44,48 @@ class Fasta():
             sys.stderr.write("Error!: "+str(len(records))+" sequences read. Fasta file '"+ filename +"' must have exactly one sequence!\n")
             sys.exit(1)
         
-        self.val = records[0].seq
+        self.val = str(records[0].seq)
         self.id = records[0].id
         sys.stdout.write("done\n")
 
+
+class Custom():
+    """
+    Reads a column in a file and stores the list
+    """
+    def __init__(self, filename, colnum, sep=' ', has_header=True):
+        self.filename = filename
+        self.colnum = colnum
+        self.data = []
+
+        sys.stdout.write("Parsing '"+filename+"':"+str(colnum)+"...")
+        if filename[-2:] == 'gz':
+            handle = gzip.open(filename, "r")
+        else:
+            handle = open(filename, "r")
+
+        if has_header:
+            handle.next()
+
+        # Parse lines
+        i = 0
+        for line in handle:
+            try:
+                i += 1
+
+                if line == "\n":
+                    continue
+
+                l = line.strip().split(' ')
+                self.data.append(l[colnum-1])
+                
+            except ValueError:
+                sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
+                sys.exit(1)
+        sys.stdout.write("done\n")
+        handle.close()
+
+            
 
 
 ##############################################################
@@ -55,11 +93,52 @@ class Fasta():
 
 def main(args):
     # Read Fasta file
-    faSequence = Fasta(args.fa)
+    faSequence = Fasta(args.fa_input)
 
     # Read variants and output new fasta
-    
-    
+    posList = Custom(args.var_pos_file, args.var_pos_col).data
+    refLenList = Custom(args.var_ref_len_file, args.var_ref_len_col).data
+    newSeqList = Custom(args.var_new_seq_file, args.var_new_seq_col).data
+
+    if (len(posList) == len(refLenList) and len(posList) == len(newSeqList)):
+        sys.stdout.write("Writing '"+args.fa_output+"...")
+        ohandle_fasta = open(args.fa_output, "w")
+        ohandle_fasta.write(">"+str(faSequence.id)+"\n")
+
+        region_start = 0
+        region_end = 0        
+        for entry in zip(posList, refLenList, newSeqList):
+            print(entry)
+            pos = int(entry[0])
+            refLen = int(entry[1])
+            newSeq = entry[2]
+
+            if pos < region_start:
+                continue
+
+            region_end = pos
+
+            # Write sequence between variants
+            ohandle_fasta.write(faSequence.val[region_start:region_end])
+
+            # Write new seq
+            ohandle_fasta.write(newSeq)
+            
+            # Set region start and skip ref seq
+            region_start = region_end+refLen
+            
+        # Write final region
+        ohandle_fasta.write(faSequence.val[region_start:])        
+        ohandle_fasta.close()
+
+        sys.stdout.write("done\n")
+
+    else:
+        sys.stderr.write("Error! Mismatch in length of columns")
+        sys.stderr.write("pos: "+str(len(posList))+"\n")
+        sys.stderr.write("seq len: "+str(len(refLenList))+"\n")
+        sys.stderr.write("new seq: "+str(len(newSeqList))+"\n")
+
 ##############################################################
 ######################### Help ###############################
 
@@ -137,17 +216,20 @@ if __name__ == '__main__':
             args.fa_output = a
         elif o == "--var-pos":
             try:
-                args.var_pos_file, args.var_pos_col = a.split(":")
+                args.var_pos_file, args.var_pos_col = a.split(":")                
+                args.var_pos_col = int(args.var_pos_col)
             except ValueError:
                 pass
         elif o == "--var-ref-len":
             try:
                 args.var_ref_len_file, args.var_ref_len_col = a.split(":")
+                args.var_ref_len_col = int(args.var_ref_len_col)
             except ValueError:
                 pass
         elif o == "--var-new-seq":
             try:
                 args.var_new_seq_file, args.var_new_seq_col = a.split(":")
+                args.var_new_seq_col = int(args.var_new_seq_col)
             except ValueError:
                 pass
         elif o == "--help":
