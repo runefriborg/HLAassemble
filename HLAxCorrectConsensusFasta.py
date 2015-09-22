@@ -20,8 +20,8 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.01"
-UPDATED="2015-09-21"
+VERSION="0.02"
+UPDATED="2015-09-22"
 PID=str(os.getpid())
 
 ##############################################################
@@ -106,14 +106,15 @@ def main(args):
         ohandle_fasta.write(">"+str(faSequence.id)+"\n")
 
         region_start = 0
-        region_end = 0        
+        region_end = 0
+        prev_entry = (0, 0, "")
         for entry in zip(posList, refLenList, newSeqList):
-            print(entry)
             pos = int(entry[0])
             refLen = int(entry[1])
             newSeq = entry[2]
 
             if pos < region_start:
+                sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
                 continue
 
             region_end = pos
@@ -126,7 +127,9 @@ def main(args):
             
             # Set region start and skip ref seq
             region_start = region_end+refLen
-            
+
+            prev_entry = entry
+
         # Write final region
         ohandle_fasta.write(faSequence.val[region_start:])        
         ohandle_fasta.close()
