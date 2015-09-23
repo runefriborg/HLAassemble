@@ -20,7 +20,7 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.03"
+VERSION="0.04"
 UPDATED="2015-09-23"
 PID=str(os.getpid())
 
@@ -119,8 +119,8 @@ def main(args):
                 prev_refLen = int(prev_entry[1])
                 prev_newSeq = prev_entry[2]
             
-                conflict = False
                 if prev_pos+len(prev_newSeq) > pos:
+                    conflict = False
                     # Possible conflict with bases. Check.                    
                     # Example of conflict ('421484', '1', 'AT') conflicts with previous variant ('421480', '5', 'AGTTG')
                     # Example of non-conflict ('5692', '1', 'N') conflicts with previous variant ('5691', '2', 'NN')
@@ -131,8 +131,12 @@ def main(args):
                             conflict = True
                         j += 1
 
-                if conflict:
-                    sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")                
+                    if conflict:
+                        sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
+                    else:
+                        tmp_pos = pos
+                        pos = prev_pos + len(prev_newSeq)
+                        newSeq = newSeq[(pos - tmp_pos):]
                 else:
                     # Correct region_start to make room for variant
                     region_start -=  (pos - (prev_pos + prev_refLen))
@@ -149,7 +153,8 @@ def main(args):
             # Set region start and skip ref seq
             region_start = region_end+refLen
 
-            prev_entry = entry
+            # Store entry
+            prev_entry = (pos, refLen, newSeq)
 
         # Write final region
         ohandle_fasta.write(faSequence.val[region_start:])        
