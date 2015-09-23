@@ -113,9 +113,23 @@ def main(args):
             refLen = int(entry[1])
             newSeq = entry[2]
 
+            #WARNING! ('5692', '1', 'N') conflicts with previous variant ('5691', '2', 'NN')
+            #WARNING! ('50675', '1', 'AG') conflicts with previous variant ('50674', '2', 'T')
+            #WARNING! ('421484', '1', 'AT') conflicts with previous variant ('421480', '5', 'AGTTG')
+
             if pos < region_start:
-                sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
-                continue
+                prev_pos = int(prev_entry[0])
+                prev_refLen = int(prev_entry[1])
+                prev_newSeq = prev_entry[2]
+            
+                if prev_pos+len(prev_newSeq) > pos:
+                    # Possible conflict with bases. Check.
+                    sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")                
+                    pass
+                else:
+                    # Correct region_start to make room for variant
+                    region_start -=  (pos - (prev_pos + prev_refLen))
+                    
 
             region_end = pos
 
