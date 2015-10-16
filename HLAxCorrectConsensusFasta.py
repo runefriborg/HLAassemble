@@ -99,6 +99,9 @@ def main(args):
     posList = Custom(args.var_pos_file, args.var_pos_col).data
     refLenList = Custom(args.var_ref_len_file, args.var_ref_len_col).data
     newSeqList = Custom(args.var_new_seq_file, args.var_new_seq_col).data
+    newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col).data
+    
+
 
     if (len(posList) == len(refLenList) and len(posList) == len(newSeqList)):
         sys.stdout.write("Writing '"+args.fa_output+"...")
@@ -176,7 +179,7 @@ def usage():
 Usage:
   HLAxCorrectConsensusFasta \
     --fa-input=<fasta file> --var-pos=<file:column> --var-ref-len=<file:column>
-    --var-new-seq=<file:column> --fa-output=<fasta file>
+    --var-new-seq=<file:column> --var-new-alt=<file:column-offset> --fa-output=<fasta file> --vcf-output=<vcf file>
 """)
 
 
@@ -184,12 +187,15 @@ class ArgContainer():
     def __init__(self):
         self.fa_input     = ""
         self.fa_output    = ""
+        self.vcf_output   = ""
         self.var_pos_file = ""
         self.var_pos_col  = None
         self.var_ref_len_file = ""
         self.var_ref_len_col  = None
         self.var_new_seq_file = ""
         self.var_new_seq_col  = ""
+        self.var_new_alt_file = ""
+        self.var_new_alt_col  = ""
 
     def ok(self):
         err = 0
@@ -214,8 +220,17 @@ class ArgContainer():
         if not self.var_new_seq_col:
             sys.stderr.write("Missing column part argument: --var-new-seq\n")
             err = 1
+        if not self.var_new_alt_file:
+            sys.stderr.write("Missing file part argument: --var-new-alt\n")
+            err = 1
+        if not self.var_new_alt_col:
+            sys.stderr.write("Missing column part argument: --var-new-alt\n")
+            err = 1
         if not self.fa_output:
             sys.stderr.write("Missing argument: --fa-output\n")
+            err = 1
+        if not self.vcf_output:
+            sys.stderr.write("Missing argument: --vcf-output\n")
             err = 1
         if err:
             sys.stderr.write("\n")
@@ -227,7 +242,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "fa-input=", "var-pos=", "var-ref-len=", "var-new-seq=", "fa-output="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "fa-input=", "var-pos=", "var-ref-len=", "var-new-seq=", "var-new-alt=", "fa-output=", "vcf-output="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -243,6 +258,8 @@ if __name__ == '__main__':
             args.fa_input = a
         elif o == "--fa-output":
             args.fa_output = a
+        elif o == "--vcf-output":
+            args.vcf_output = a
         elif o == "--var-pos":
             try:
                 args.var_pos_file, args.var_pos_col = a.split(":")                
@@ -259,6 +276,12 @@ if __name__ == '__main__':
             try:
                 args.var_new_seq_file, args.var_new_seq_col = a.split(":")
                 args.var_new_seq_col = int(args.var_new_seq_col)
+            except ValueError:
+                pass
+        elif o == "--var-new-alt":
+            try:
+                args.var_new_alt_file, args.var_new_alt_col = a.split(":")
+                args.var_new_alt_col = int(args.var_new_alt_col)
             except ValueError:
                 pass
         elif o == "--help":
