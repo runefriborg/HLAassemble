@@ -103,14 +103,15 @@ def main(args):
     refLenList = Custom(args.var_ref_len_file, args.var_ref_len_col).data
     newSeqList = Custom(args.var_new_seq_file, args.var_new_seq_col).data
     newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col, size=6).data
+    vcfInfoList = Custom(args.var_vcf_info_file, args.var_vcf_info_col).data    
     
-
-    
-    if not (len(posList) == len(refLenList) and len(posList) == len(newSeqList) and len(posList) == len(newAltList)):
+    if not (len(posList) == len(refLenList) and len(posList) == len(newSeqList) and len(posList) == len(newAltList) and len(posList) == len(vcfInfoList)):
         sys.stderr.write("Error! Mismatch in length of columns")
         sys.stderr.write("pos: "+str(len(posList))+"\n")
         sys.stderr.write("seq len: "+str(len(refLenList))+"\n")
         sys.stderr.write("new seq: "+str(len(newSeqList))+"\n")
+        sys.stderr.write("new alt: "+str(len(newAltList))+"\n")
+        sys.stderr.write("vcf info: "+str(len(vcfInfoList))+"\n")
         sys.exit(1)
 
 
@@ -165,10 +166,11 @@ def main(args):
     ohandle_vcf = open(args.vcf_output, "w")
     ohandle_vcf.write("#CHROM\tPOS\tID\tREF\tALT\tINFO\n")
 
+    vcf_offset = 0
     region_start = 0
     region_end = 0
     prev_entry = (0, 0, "")
-    for entry in zip(posList, refLenList, newSeqList):
+    for entry in zip(posList, refLenList, newSeqList, newAltList, vcfInfoList):
         pos = entry[0]
         if pos == None:
             # Entry removing during filtering. Skip
@@ -177,7 +179,12 @@ def main(args):
         pos = int(pos)
         refLen = int(entry[1])
         newSeq = entry[2]
-
+        newAlt = entry[3]
+        vcfInfo = entry[4]
+        
+        newAlt = set(newAlt)
+        if newSeq in newAlt:
+            newAlt.remove(newSeq)
 
         if pos < region_start:
             prev_pos = int(prev_entry[0])
@@ -205,29 +212,33 @@ def main(args):
                     sys.stderr.write("  " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
                     sys.exit(1)
                 else:
+                    
                     region_end = prev_pos + len(prev_newSeq)
-
-                    # Write sequence between variants
-                    ohandle_fasta.write(faSequence.val[region_start:region_end])
-
                     diff = (region_end - pos)
+
+                    # Write VCF entry
+                    ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset-diff)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\tPS="+vcfInfo+"\n")
 
                     # Write new seq
                     ohandle_fasta.write(newSeq[diff:])
+                    vcf_offset += len(newSeq[diff:])
 
                     # Set region start and skip ref seq
                     region_start = region_end+refLen-diff
-
-                    ohandle_vcf.write("")
 
         else:
             region_end = pos
 
             # Write sequence between variants
             ohandle_fasta.write(faSequence.val[region_start:region_end])
+            vcf_offset += len(faSequence.val[region_start:region_end])
+
+            # Write VCF entry
+            ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\tPS="+vcfInfo+"\n")
 
             # Write new seq
             ohandle_fasta.write(newSeq)
+            vcf_offset += len(newSeq)
             
             # Set region start and skip ref seq
             region_start = region_end+refLen
@@ -250,7 +261,8 @@ def usage():
 Usage:
   HLAxCorrectConsensusFasta \
     --fa-input=<fasta file> --var-pos=<file:column> --var-ref-len=<file:column>
-    --var-new-seq=<file:column> --var-new-alt=<file:column-offset> --fa-output=<fasta file> --vcf-output=<vcf file>
+    --var-new-seq=<file:column> --var-new-alt=<file:column-offset> --var-vcf-info=<file:column>
+    --fa-output=<fasta file> --vcf-output=<vcf file>
 """)
 
 
@@ -267,6 +279,8 @@ class ArgContainer():
         self.var_new_seq_col  = ""
         self.var_new_alt_file = ""
         self.var_new_alt_col  = ""
+        self.var_vcf_info_file = ""
+        self.var_vcf_info_col  = ""
 
     def ok(self):
         err = 0
@@ -297,6 +311,12 @@ class ArgContainer():
         if not self.var_new_alt_col:
             sys.stderr.write("Missing column part argument: --var-new-alt\n")
             err = 1
+        if not self.var_vcf_info_file:
+            sys.stderr.write("Missing file part argument: --var-vcf-info\n")
+            err = 1
+        if not self.var_vcf_info_col:
+            sys.stderr.write("Missing column part argument: --var-vcf-info\n")
+            err = 1
         if not self.fa_output:
             sys.stderr.write("Missing argument: --fa-output\n")
             err = 1
@@ -313,7 +333,7 @@ class ArgContainer():
 if __name__ == '__main__':
 
     try:
-        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "fa-input=", "var-pos=", "var-ref-len=", "var-new-seq=", "var-new-alt=", "fa-output=", "vcf-output="])
+        opts, dirs = getopt.getopt(sys.argv[1:], "", ["help", "fa-input=", "var-pos=", "var-ref-len=", "var-new-seq=", "var-new-alt=", "var-vcf-info=", "fa-output=", "vcf-output="])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
@@ -353,6 +373,12 @@ if __name__ == '__main__':
             try:
                 args.var_new_alt_file, args.var_new_alt_col = a.split(":")
                 args.var_new_alt_col = int(args.var_new_alt_col)
+            except ValueError:
+                pass
+        elif o == "--var-vcf-info":
+            try:
+                args.var_vcf_info_file, args.var_vcf_info_col = a.split(":")
+                args.var_vcf_info_col = int(args.var_vcf_info_col)
             except ValueError:
                 pass
         elif o == "--help":
