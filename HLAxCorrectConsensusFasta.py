@@ -53,7 +53,7 @@ class Custom():
     """
     Reads a column in a file and stores the list
     """
-    def __init__(self, filename, colnum, sep=' ', has_header=True):
+    def __init__(self, filename, colnum, sep=' ', size=1, has_header=True):
         self.filename = filename
         self.colnum = colnum
         self.data = []
@@ -76,8 +76,11 @@ class Custom():
                 if line == "\n":
                     continue
 
-                l = line.strip().split(' ')
-                self.data.append(l[colnum-1])
+                l = line.strip().split(sep)
+                if size > 1:
+                    self.data.append(l[colnum-1:colnum-1+(size)])
+                else:
+                    self.data.append(l[colnum-1])
                 
             except ValueError:
                 sys.stderr.write("Error!: Failing parsing line "+str(i)+" in '"+filename+"'!\nGot: "+str(l)+"\n")
@@ -99,52 +102,125 @@ def main(args):
     posList = Custom(args.var_pos_file, args.var_pos_col).data
     refLenList = Custom(args.var_ref_len_file, args.var_ref_len_col).data
     newSeqList = Custom(args.var_new_seq_file, args.var_new_seq_col).data
-    newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col).data
+    newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col, size=6).data
     
 
-
-    if (len(posList) == len(refLenList) and len(posList) == len(newSeqList)):
-        sys.stdout.write("Writing '"+args.fa_output+"...")
-        ohandle_fasta = open(args.fa_output, "w")
-        ohandle_fasta.write(">"+str(faSequence.id)+"\n")
-
-        region_start = 0
-        region_end = 0
-        prev_entry = (0, 0, "")
-        for entry in zip(posList, refLenList, newSeqList):
-            pos = int(entry[0])
-            refLen = int(entry[1])
-            newSeq = entry[2]
+    
+    if not (len(posList) == len(refLenList) and len(posList) == len(newSeqList) and len(posList) == len(newAltList)):
+        sys.stderr.write("Error! Mismatch in length of columns")
+        sys.stderr.write("pos: "+str(len(posList))+"\n")
+        sys.stderr.write("seq len: "+str(len(refLenList))+"\n")
+        sys.stderr.write("new seq: "+str(len(newSeqList))+"\n")
+        sys.exit(1)
 
 
-            if pos < region_start:
-                prev_pos = int(prev_entry[0])
-                prev_refLen = int(prev_entry[1])
-                prev_newSeq = prev_entry[2]
-            
-                if prev_pos+len(prev_newSeq) > pos:
-                    conflict = False
-                    # Possible conflict with bases. Check.                    
-                    # Example of conflict ('421484', '1', 'AT') conflicts with previous variant ('421480', '5', 'AGTTG')
-                    # Example of non-conflict ('5692', '1', 'N') conflicts with previous variant ('5691', '2', 'NN')
-                    # Example of non-conflict ('50675', '1', 'AG') conflicts with previous variant ('50674', '2', 'T')
-                    j = 0
-                    for i in xrange(pos-prev_pos, len(prev_newSeq)): 
-                        if j < len(newSeq) and prev_newSeq[i] != newSeq[j]:
-                            conflict = True
-                        j += 1
+    # Perform filtering of conflicts
+    records = {}
+    for i in xrange(len(posList)):
+        pos = posList[i]
+        if pos == None:
+            # entry was removed, because of a conflict
+            # skip
+            continue
 
-                    if conflict:
-                        sys.stderr.write("WARNING! " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
-                    else:
-                        tmp_pos = pos
-                        pos = prev_pos + len(prev_newSeq)
-                        newSeq = newSeq[(pos - tmp_pos):]
+        # type cast to int
+        pos = int(pos)
+        ref_len = int(refLenList[i])
+        for k in range(ref_len):
+            if records.has_key(pos+k):
+                #possible conflict!
+                prev_index = records[pos+k]                
+                prev_pos = posList[prev_index]
+                if prev_pos == None:
+                    posList[i] = None
+                    continue
+
+                prev_pos = int(prev_pos)
+                prev_seq = newSeqList[prev_index]
+                cur_seq = newSeqList[i]
+                
+                j = pos+k-prev_pos
+
+                if j < len(prev_seq) and cur_seq[k] == prev_seq[j]:
+                    # Ok
+                    pass
+                elif not j < len(prev_seq):
+                    sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
+                    sys.stderr.write("  Conflict: delection VS '"+cur_seq[k]+"'. Removing both entries.\n")
+                    posList[i] = None
+                    posList[prev_index] = None
                 else:
-                    # Correct region_start to make room for variant
-                    region_start -=  (pos - (prev_pos + prev_refLen))
-                    
+                    sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
+                    sys.stderr.write("  Conflict: '"+prev_seq[j]+"' VS '"+cur_seq[k]+"'. Removing both entries.\n")
+                    posList[i] = None
+                    posList[prev_index] = None
 
+            else:
+                records[pos+k] = i
+
+
+    sys.stdout.write("Writing '"+args.fa_output+"' and '"+args.vcf_output+"'...")
+    ohandle_fasta = open(args.fa_output, "w")
+    ohandle_fasta.write(">"+str(faSequence.id)+"\n")    
+    ohandle_vcf = open(args.vcf_output, "w")
+    ohandle_vcf.write("#CHROM\tPOS\tID\tREF\tALT\tINFO\n")
+
+    region_start = 0
+    region_end = 0
+    prev_entry = (0, 0, "")
+    for entry in zip(posList, refLenList, newSeqList):
+        pos = entry[0]
+        if pos == None:
+            # Entry removing during filtering. Skip
+            continue
+
+        pos = int(pos)
+        refLen = int(entry[1])
+        newSeq = entry[2]
+
+
+        if pos < region_start:
+            prev_pos = int(prev_entry[0])
+            prev_refLen = int(prev_entry[1])
+            prev_newSeq = prev_entry[2]
+            
+            if pos > prev_pos+len(prev_newSeq):
+                sys.stderr.write("ERROR! Uncaught conflict in filtering\n")
+                sys.stderr.write("  " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
+                sys.exit(1)
+            else:
+                conflict = False
+                # Possible conflict with bases. Check.                    
+                # Example of conflict ('421484', '1', 'AT') conflicts with previous variant ('421480', '5', 'AGTTG')
+                # Example of conflict ('50675', '1', 'AG') conflicts with previous variant ('50674', '2', 'T')
+                # Example of non-conflict ('5692', '1', 'N') conflicts with previous variant ('5691', '2', 'NN')
+                j = 0
+                for i in xrange(pos-prev_pos, len(prev_newSeq)): 
+                    if j < len(newSeq) and prev_newSeq[i] != newSeq[j]:
+                        conflict = True
+                    j += 1
+
+                if conflict:
+                    sys.stderr.write("ERROR! Uncaught conflict in filtering\n")
+                    sys.stderr.write("  " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
+                    sys.exit(1)
+                else:
+                    region_end = prev_pos + len(prev_newSeq)
+
+                    # Write sequence between variants
+                    ohandle_fasta.write(faSequence.val[region_start:region_end])
+
+                    diff = (region_end - pos)
+
+                    # Write new seq
+                    ohandle_fasta.write(newSeq[diff:])
+
+                    # Set region start and skip ref seq
+                    region_start = region_end+refLen-diff
+
+                    ohandle_vcf.write("")
+
+        else:
             region_end = pos
 
             # Write sequence between variants
@@ -156,20 +232,15 @@ def main(args):
             # Set region start and skip ref seq
             region_start = region_end+refLen
 
-            # Store entry
-            prev_entry = (pos, refLen, newSeq)
+        # Store entry
+        prev_entry = entry
 
-        # Write final region
-        ohandle_fasta.write(faSequence.val[region_start:])        
-        ohandle_fasta.close()
+    # Write final region
+    ohandle_fasta.write(faSequence.val[region_start:])        
+    ohandle_fasta.close()
+    ohandle_vcf.close()
+    sys.stdout.write("done\n")
 
-        sys.stdout.write("done\n")
-
-    else:
-        sys.stderr.write("Error! Mismatch in length of columns")
-        sys.stderr.write("pos: "+str(len(posList))+"\n")
-        sys.stderr.write("seq len: "+str(len(refLenList))+"\n")
-        sys.stderr.write("new seq: "+str(len(newSeqList))+"\n")
 
 ##############################################################
 ######################### Help ###############################
