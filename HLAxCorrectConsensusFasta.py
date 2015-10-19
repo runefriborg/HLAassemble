@@ -20,8 +20,8 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.05"
-UPDATED="2015-10-16"
+VERSION="0.06"
+UPDATED="2015-10-19"
 PID=str(os.getpid())
 
 ##############################################################
@@ -142,12 +142,22 @@ def main(args):
                 
                 j = pos+k-prev_pos
 
-                if j < len(prev_seq) and cur_seq[k] == prev_seq[j]:
+                if j < len(prev_seq) and k < len(cur_seq) and cur_seq[k] == prev_seq[j]:
                     # Ok
                     pass
+                elif (not j < len(prev_seq)) and (not k < len(cur_seq)):
+                    sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
+                    sys.stderr.write("  Conflict: deletion VS deletion. Removing both entries.\n")
+                    posList[i] = None
+                    posList[prev_index] = None
+                elif not k < len(cur_seq):
+                    sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
+                    sys.stderr.write("  Conflict: '"+prev_seq[j]+"' VS deletion. Removing both entries.\n")
+                    posList[i] = None
+                    posList[prev_index] = None
                 elif not j < len(prev_seq):
                     sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
-                    sys.stderr.write("  Conflict: delection VS '"+cur_seq[k]+"'. Removing both entries.\n")
+                    sys.stderr.write("  Conflict: deletion VS '"+cur_seq[k]+"'. Removing both entries.\n")
                     posList[i] = None
                     posList[prev_index] = None
                 else:
