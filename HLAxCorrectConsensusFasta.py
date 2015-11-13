@@ -20,7 +20,7 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.08"
+VERSION="0.09"
 UPDATED="2015-11-13"
 PID=str(os.getpid())
 
@@ -120,13 +120,15 @@ def main(args):
     records = {}
     for i in xrange(len(posList)):
         pos = posList[i]
+
         if pos == None:
             # entry was removed, because of a conflict
             # skip
             continue
-
+        
         # type cast to int
         pos = int(pos)
+        
         ref_len = int(refLenList[i])
         for k in range(ref_len):
             if records.has_key(pos+k):
@@ -142,8 +144,10 @@ def main(args):
                 cur_seq = newSeqList[i]
                 
                 j = pos+k-prev_pos
+                
+                seq_len_overlap = min(len(cur_seq)-k, len(prev_seq)-j)
 
-                if j < len(prev_seq) and k < len(cur_seq) and cur_seq[k] == prev_seq[j]:
+                if j < len(prev_seq) and k < len(cur_seq) and cur_seq[k:k+seq_len_overlap] == prev_seq[j:j+seq_len_overlap]:
                     # Ok
                     pass
                 elif (not j < len(prev_seq)) and (not k < len(cur_seq)):
@@ -163,7 +167,7 @@ def main(args):
                     posList[prev_index] = None
                 else:
                     sys.stderr.write("WARNING! variant at line:" + str(i+2) + " conflicts with previous variant at line:" + str(prev_index+2) +"\n")
-                    sys.stderr.write("  Conflict: '"+prev_seq[j]+"' VS '"+cur_seq[k]+"'. Removing both entries.\n")
+                    sys.stderr.write("  Conflict: '"+prev_seq[j:j+seq_len_overlap]+"' VS '"+cur_seq[k:k+seq_len_overlap]+"'. Removing both entries.\n")
                     posList[i] = None
                     posList[prev_index] = None
 
@@ -238,7 +242,7 @@ def main(args):
 
                 if conflict:
                     sys.stderr.write("ERROR! Uncaught conflict in filtering\n")
-                    sys.stderr.write("  " + str(entry) + " conflicts with previous variant " + str(prev_entry) +"\n")
+                    sys.stderr.write("  " + str(entry[4]) + " conflicts with previous variant\n  " + str(prev_entry[4]) +"\n")
                     sys.exit(1)
                 else:
                     
