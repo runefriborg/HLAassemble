@@ -20,7 +20,7 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.07"
+VERSION="0.08"
 UPDATED="2015-11-13"
 PID=str(os.getpid())
 
@@ -180,7 +180,7 @@ def main(args):
     ohandle_vcf.write('##source=HLAxCorrectConsensusFasta.py\n')
     ohandle_vcf.write('##INFO=<ID=PS,Number=1,Type=String,Description="Phasing status">\n')
     ohandle_vcf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
-    ohandle_vcf.write('#CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE\n')
+    ohandle_vcf.write('#CHROM POS ID REF ALT QUAL FILTER INFO FORMAT '+str(faSequence.id)+'\n')
     #ohandle_vcf.write("#CHROM\tPOS\tID\tREF\tALT\tINFO\n")
 
     def calc_genotype(method, child_a1, child_a2, var):
