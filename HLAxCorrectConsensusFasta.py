@@ -20,8 +20,8 @@ import os
 ##############################################################
 ####################### Configuration ########################
 
-VERSION="0.06"
-UPDATED="2015-10-19"
+VERSION="0.07"
+UPDATED="2015-11-13"
 PID=str(os.getpid())
 
 ##############################################################
@@ -102,8 +102,9 @@ def main(args):
     posList = Custom(args.var_pos_file, args.var_pos_col).data
     refLenList = Custom(args.var_ref_len_file, args.var_ref_len_col).data
     newSeqList = Custom(args.var_new_seq_file, args.var_new_seq_col).data
-    newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col, size=6).data
-    vcfInfoList = Custom(args.var_vcf_info_file, args.var_vcf_info_col).data    
+    newAltList = Custom(args.var_new_alt_file, args.var_new_alt_col, size=6).data    
+
+    vcfInfoList = Custom(args.var_vcf_info_file, 1, size=100).data    
     
     if not (len(posList) == len(refLenList) and len(posList) == len(newSeqList) and len(posList) == len(newAltList) and len(posList) == len(vcfInfoList)):
         sys.stderr.write("Error! Mismatch in length of columns")
@@ -174,7 +175,25 @@ def main(args):
     ohandle_fasta = open(args.fa_output, "w")
     ohandle_fasta.write(">"+str(faSequence.id)+"\n")    
     ohandle_vcf = open(args.vcf_output, "w")
-    ohandle_vcf.write("#CHROM\tPOS\tID\tREF\tALT\tINFO\n")
+
+    ohandle_vcf.write('##fileformat=VCOCFv4.1\n')
+    ohandle_vcf.write('##source=HLAxCorrectConsensusFasta.py\n')
+    ohandle_vcf.write('##INFO=<ID=PS,Number=1,Type=String,Description="Phasing status">\n')
+    ohandle_vcf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
+    ohandle_vcf.write('#CHROM POS ID REF ALT QUAL FILTER INFO FORMAT SAMPLE\n')
+    #ohandle_vcf.write("#CHROM\tPOS\tID\tREF\tALT\tINFO\n")
+
+    def calc_genotype(method, child_a1, child_a2, var):
+        if method == "unassigned":
+            return "./."
+        elif method == "obvious" or method == "phased":
+            if child_a1 == child_a2:
+                return "0|0"
+            elif child_a1 == var:
+                return "0|1"
+            else:
+                return "1|0"
+
 
     vcf_offset = 0
     region_start = 0
@@ -227,7 +246,9 @@ def main(args):
                     diff = (region_end - pos)
 
                     # Write VCF entry
-                    ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset-diff)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\tPS="+vcfInfo+"\n")
+                    method = vcfInfo[5]
+                    ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset-diff)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\t"+str(vcfInfo[10])+"\tPASS\tPS="+method+"\tGT\t")  
+                    ohandle_vcf.write(calc_genotype(method, child_a1=vcfInfo[13], child_a2=vcfInfo[14], var=vcfInfo[2]) + "\n")                        
 
                     # Write new seq
                     ohandle_fasta.write(newSeq[diff:])
@@ -244,7 +265,9 @@ def main(args):
             vcf_offset += len(faSequence.val[region_start:region_end])
 
             # Write VCF entry
-            ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\tPS="+vcfInfo+"\n")
+            method = vcfInfo[5]
+            ohandle_vcf.write(str(faSequence.id)+"\t"+str(vcf_offset)+"\told_pos_"+str(pos)+"\t"+str(newSeq)+"\t"+','.join(newAlt)+"\t"+str(vcfInfo[10])+"\tPASS\tPS="+method+"\tGT\t")  
+            ohandle_vcf.write(calc_genotype(method, child_a1=vcfInfo[13], child_a2=vcfInfo[14], var=vcfInfo[2]) + "\n")                        
 
             # Write new seq
             ohandle_fasta.write(newSeq)
